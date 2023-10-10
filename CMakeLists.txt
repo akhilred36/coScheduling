@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.15)
 project(CoScheduling)
 
 # Look for an installed Kokkos
-find_package(MPI REQUIRED)
+find_package(MPI)
 include_directories(${MPI_INCLUDE_PATH})
 
 add_executable(networkInhib networkInhibitor/networkInhib.cpp)
