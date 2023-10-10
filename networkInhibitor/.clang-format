@@ -1,0 +1,11 @@
+BasedOnStyle: Google
+IndentWidth: 4
+DerivePointerAlignment: false
+PointerAlignment: Left
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterControlStatement: true
+  AfterFunction: true
+  AfterStruct: true
+  AfterUnion: true
+  BeforeElse: true
