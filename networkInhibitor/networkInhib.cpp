@@ -1,16 +1,18 @@
 #include <mpi.h>
 #include <unistd.h>
 
+#include <chrono>
 #include <iostream>
 #include <memory>
 #include <random>
+#include <thread>
 #include <vector>
 
 #define ITERS 1000
 
 using namespace std;
 
-void fillArray(shared_ptr<double[]> array, int size)
+void fillArray(double* array, int size)
 {
     double lower_bound = 0;
     double upper_bound = 1000000;
@@ -60,36 +62,44 @@ int main(int argc, char** argv)
         cout << "------------------------------------------------------------"
              << endl;
     }
-    vector<shared_ptr<double[]>> sendBuffers;
-    vector<shared_ptr<double[]>> recvBuffers;
+    vector<double*> sendBuffers;
+    vector<double*> recvBuffers;
 
     for (int i = 0; i < numProcs; i++)
     {
-        shared_ptr<double[]> sb(new double[msgSize * 1000]);
-        shared_ptr<double[]> rb(new double[msgSize * 1000]);
+        double* sb = new double[msgSize * 1000];
+        double* rb = new double[msgSize * 1000];
         sendBuffers.push_back(sb);
         recvBuffers.push_back(rb);
         fillArray(sendBuffers.at(i), msgSize * 1000);
     }
 
-    shared_ptr<MPI_Request[]> sendReqs(new MPI_Request[numProcs]);
-    shared_ptr<MPI_Request[]> recvReqs(new MPI_Request[numProcs]);
-
-    for (int i = 0; i < ITERS; i++)
+    MPI_Request* sendReqs = new MPI_Request[numProcs];
+    MPI_Request* recvReqs = new MPI_Request[numProcs];
+    while (1)
     {
         for (int j = 0; j < numProcs; j++)
         {
-            MPI_Isend(&(sendBuffers.at(j)), msgSize * 1000, MPI_DOUBLE, j, 0,
+            MPI_Isend(sendBuffers.at(j), msgSize * 1000, MPI_DOUBLE, j, 0,
                       MPI_COMM_WORLD, &(sendReqs[j]));
-            MPI_Irecv(&(recvBuffers.at(j)), msgSize * 1000, MPI_DOUBLE, j, 0,
+            MPI_Irecv(recvBuffers.at(j), msgSize * 1000, MPI_DOUBLE, j, 0,
                       MPI_COMM_WORLD, &(recvReqs[j]));
         }
-        MPI_Waitall(numProcs, &(sendReqs[0]), MPI_STATUSES_IGNORE);
-        MPI_Waitall(numProcs, &(recvReqs[0]), MPI_STATUSES_IGNORE);
-        // Background network soaking job
-        // Run app
-        // Kill network soaking job when app finishes
+        MPI_Waitall(numProcs, sendReqs, MPI_STATUSES_IGNORE);
+        MPI_Waitall(numProcs, recvReqs, MPI_STATUSES_IGNORE);
+        this_thread::sleep_for(chrono::milliseconds(waitTime));
     }
+
+    for (auto pointer : sendBuffers)
+    {
+        delete pointer;
+    }
+    for (auto pointer : recvBuffers)
+    {
+        delete pointer;
+    }
+    delete sendReqs;
+    delete recvReqs;
     MPI_Finalize();
     return 0;
 }
