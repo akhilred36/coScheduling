@@ -76,8 +76,10 @@ int main(int argc, char** argv)
 
     MPI_Request* sendReqs = new MPI_Request[numProcs];
     MPI_Request* recvReqs = new MPI_Request[numProcs];
+    int count = 0;
     while (1)
     {
+        std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
         for (int j = 0; j < numProcs; j++)
         {
             MPI_Isend(sendBuffers.at(j), msgSize * 1000, MPI_DOUBLE, j, 0,
@@ -87,7 +89,14 @@ int main(int argc, char** argv)
         }
         MPI_Waitall(numProcs, sendReqs, MPI_STATUSES_IGNORE);
         MPI_Waitall(numProcs, recvReqs, MPI_STATUSES_IGNORE);
-        this_thread::sleep_for(chrono::milliseconds(waitTime));
+        chrono::steady_clock::time_point end = chrono::steady_clock::now();
+        auto duration = chrono::duration_cast<chrono::milliseconds>(end - begin).count();
+        if (duration < waitTime)
+        {
+            auto remainingTime = waitTime - duration;
+            this_thread::sleep_for(chrono::milliseconds(remainingTime));
+        }
+        count++;
     }
 
     for (auto pointer : sendBuffers)
