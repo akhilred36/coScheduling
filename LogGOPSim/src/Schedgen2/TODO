@@ -1,0 +1,8 @@
+Trace Reader:
+- add calcs between mpi calls, make them dependent on each other
+
+GOAL:
+- implement re-rooting, now we assume rank 0 is root
+- implement comm-flattening
+- handle tags 
+- get rid of GetLabel (label should be index in ops)
