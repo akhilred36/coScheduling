@@ -97,6 +97,7 @@ int main(int argc, char** argv)
             this_thread::sleep_for(chrono::milliseconds(remainingTime));
         }
         count++;
+        MPI_Barrier(MPI_COMM_WORLD);
     }
 
     for (auto pointer : sendBuffers)

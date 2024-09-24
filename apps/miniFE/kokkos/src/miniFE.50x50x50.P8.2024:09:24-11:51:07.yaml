@@ -1,0 +1,60 @@
+Mini-Application Name: miniFE
+Mini-Application Version: 2.0
+Global Run Parameters: 
+  dimensions: 
+    nx: 50
+    ny: 50
+    nz: 50
+  load_imbalance: 0
+  mv_overlap_comm_comp: 0 (no)
+  number of processors: 8
+  ScalarType: double
+  GlobalOrdinalType: int
+  LocalOrdinalType: int
+Platform: 
+  hostname: dt-login04.delta.ncsa.illinois.edu
+  kernel name: 'Linux'
+  kernel release: '4.18.0-477.70.1.el8_8.x86_64'
+  processor: 'x86_64'
+Build: 
+  CXX: '/sw/spack/deltas11-2023-03/apps/linux-rhel8-zen3/gcc-11.4.0/openmpi-4.1.6-lranp74/bin/mpicxx'
+  compiler version: 'g++ (Spack GCC) 11.4.0'
+  CXXFLAGS: '-O3 -DMPICH_IGNORE_CXX_SEEK -fPIC -DMINIFE_SCALAR=double -DMINIFE_LOCAL_ORDINAL=int -DMINIFE_GLOBAL_ORDINAL=int -DMINIFE_CSR_MATRIX -I./ -I/u/aalasand1/hpcResearch/apps/miniFE/kokkos/src/.. -I/u/aalasand1/hpcResearch/apps/miniFE/kokkos/src/../src -I/u/aalasand1/hpcResearch/apps/miniFE/kokkos/src/../kokkos/linalg/src -I/u/aalasand1/hpcResearch/apps/miniFE/kokkos/src/../fem -I/u/aalasand1/hpcResearch/apps/miniFE/kokkos/src/../utils -I/u/aalasand1/hpcResearch/apps/miniFE/kokkos/src/../common -DMINIFE_INFO=1 -DMINIFE_KERNELS=0 -DUSE_MPI_WTIME -DHAVE_MPI'
+  using MPI: yes
+Run Date/Time: 2024-09-24, 11-51-07
+Rows-per-proc Load Imbalance: 
+  Largest (from avg, %): 0
+  Std Dev (%): 0
+Matrix structure generation: 
+  Mat-struc-gen Time: 0.0174479
+FE assembly: 
+  FE assembly Time: 0.0337607
+Matrix attributes: 
+  Global Nrows: 132651
+  Global NNZ: 3442951
+  Global Memory (GB): 0.0394663
+  Pll Memory Overhead (MB): 0.186333
+  Rows per proc MIN: 15625
+  Rows per proc MAX: 17576
+  Rows per proc AVG: 16581.4
+  NNZ per proc MIN: 405224
+  NNZ per proc MAX: 456533
+  NNZ per proc AVG: 430369
+CG solve: 
+  Iterations: 167
+  Final Resid Norm: 1.7928e-16
+  WAXPY Time: 0.00417588
+  WAXPY Flops: 1.88625e+08
+  WAXPY Mflops: 45170.1
+  DOT Time: 0.0277941
+  DOT Flops: 8.35e+07
+  DOT Mflops: 3004.24
+  MATVEC Time: 0.0746967
+  MATVEC Flops: 1.15683e+09
+  MATVEC Mflops: 15487
+  Total: 
+    Total CG Time: 0.108074
+    Total CG Flops: 1.42896e+09
+    Total CG Mflops: 13222.1
+  Time per iteration: 0.000647147
+Total Program Time: 0.185345
