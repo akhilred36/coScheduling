@@ -28,11 +28,11 @@ executables = {
         }
 
 app_paths = {
-        "beatnik": "/users/aalasand/carc-scratch/workspace/coScheduling/apps/beatnik/build/examples",
-        "fiesta": "/users/aalasand/carc-scratch/workspace/coScheduling/apps/fiesta/build",
-        "lammps": "/users/aalasand/carc-scratch/workspace/coScheduling/apps/lammps/build",
-        "lulesh": "/users/aalasand/carc-scratch/workspace/coScheduling/apps/lulesh/kokkos-no-uvm/build",
-        "minife": "/users/aalasand/carc-scratch/workspace/coScheduling/apps/miniFE/kokkos/src",
+        "beatnik": "/u/aalasand1/hpcResearch/coScheduling/apps/beatnik/build/examples",
+        "fiesta": "/u/aalasand1/hpcResearch/coScheduling/apps/fiesta/build",
+        "lammps": "/u/aalasand1/hpcResearch/coScheduling/apps/lammps/build",
+        "lulesh": "/u/aalasand1/hpcResearch/coScheduling/apps/lulesh/kokkos-no-uvm/build",
+        "minife": "/u/aalasand1/hpcResearch/coScheduling/apps/miniFE/kokkos/src",
         }
 
 def app_inputs(app, num_procs):
@@ -127,29 +127,29 @@ for c in combinations:
             slurm_file.write(f"export MPIP=\"-f {dir_path}/mpipProfiles\"\n")
             if (app_1_singleProcRuntime < RUNTIME_OVERLAP_THRESHOLD*app_2_singleProcRuntime):
                 slurm_file.write(f"cd {app_2_active_dir}\n")
-                slurm_file.write(f"srun --ntasks {num_procs} --ntasks_per_node {ntasks_per_node} --nodes {num_nodes} --cpus-per-task 1 --mem 120G {app_2_exec} {app_2_inputs} | grep measuredTime >> {dir_path}/{app_2}_time.log &\n")
+                slurm_file.write(f"srun --ntasks {num_procs} --ntasks-per-node {ntasks_per_node} --nodes {num_nodes} --cpus-per-task 1 --mem 120G {app_2_exec} {app_2_inputs} | grep measuredTime >> {dir_path}/{app_2}_time.log &\n")
                 slurm_file.write(f"app2PID=$!\n")
                 slurm_file.write(f"cd {app_1_active_dir}\n")
                 slurm_file.write(f"while ps -p $app2PID > /dev/null\n")
                 slurm_file.write(f"do\n")
-                slurm_file.write(f"\tsrun --ntasks {num_procs} --ntasks_per_node {ntasks_per_node} --nodes {num_nodes} --cpus-per-task 1 --mem 120G {app_1_exec} {app_1_inputs} | grep measuredTime >> {dir_path}/{app_1}_time.log\n")
+                slurm_file.write(f"\tsrun --ntasks {num_procs} --ntasks-per-node {ntasks_per_node} --nodes {num_nodes} --cpus-per-task 1 --mem 120G {app_1_exec} {app_1_inputs} | grep measuredTime >> {dir_path}/{app_1}_time.log\n")
                 slurm_file.write("done\n")
                 slurm_file.write("wait\n")
             elif (app_2_singleProcRuntime < RUNTIME_OVERLAP_THRESHOLD*app_1_singleProcRuntime):
                 slurm_file.write(f"cd {app_1_active_dir}\n")
-                slurm_file.write(f"srun --ntasks {num_procs} --ntasks_per_node {ntasks_per_node} --nodes {num_nodes} --cpus-per-task 1 --mem 120G {app_1_exec} {app_1_inputs} | grep measuredTime >> {dir_path}/{app_1}_time.log &\n")
+                slurm_file.write(f"srun --ntasks {num_procs} --ntasks-per-node {ntasks_per_node} --nodes {num_nodes} --cpus-per-task 1 --mem 120G {app_1_exec} {app_1_inputs} | grep measuredTime >> {dir_path}/{app_1}_time.log &\n")
                 slurm_file.write(f"app1PID=$!\n")
                 slurm_file.write(f"cd {app_2_active_dir}\n")
                 slurm_file.write(f"while ps -p $app1PID > /dev/null\n")
                 slurm_file.write(f"do\n")
-                slurm_file.write(f"\tsrun --ntasks {num_procs} --ntasks_per_node {ntasks_per_node} --nodes {num_nodes} --cpus-per-task 1 --mem 120G {app_2_exec} {app_2_inputs} | grep measuredTime >> {dir_path}/{app_2}_time.log\n")
+                slurm_file.write(f"\tsrun --ntasks {num_procs} --ntasks-per-node {ntasks_per_node} --nodes {num_nodes} --cpus-per-task 1 --mem 120G {app_2_exec} {app_2_inputs} | grep measuredTime >> {dir_path}/{app_2}_time.log\n")
                 slurm_file.write("done\n")
                 slurm_file.write("wait\n")
             else:
                 slurm_file.write(f"cd {app_1_active_dir}\n")
-                slurm_file.write(f"srun --ntasks {num_procs} --ntasks_per_node {ntasks_per_node} --nodes {num_nodes} --cpus-per-task 1 --mem 120G {app_1_exec} {app_1_inputs} | grep measuredTime >> {dir_path}/{app_1}_time.log &\n")
+                slurm_file.write(f"srun --ntasks {num_procs} --ntasks-per-node {ntasks_per_node} --nodes {num_nodes} --cpus-per-task 1 --mem 120G {app_1_exec} {app_1_inputs} | grep measuredTime >> {dir_path}/{app_1}_time.log &\n")
                 slurm_file.write(f"cd {app_2_active_dir}\n")
-                slurm_file.write(f"srun --ntasks {num_procs} --ntasks_per_node {ntasks_per_node} --nodes {num_nodes} --cpus-per-task 1 --mem 120G {app_2_exec} {app_2_inputs} | grep measuredTime >> {dir_path}/{app_2}_time.log &\n")
+                slurm_file.write(f"srun --ntasks {num_procs} --ntasks-per-node {ntasks_per_node} --nodes {num_nodes} --cpus-per-task 1 --mem 120G {app_2_exec} {app_2_inputs} | grep measuredTime >> {dir_path}/{app_2}_time.log &\n")
                 slurm_file.write("wait\n")
             slurm_file.close()
             chdir("../")
@@ -196,7 +196,7 @@ for app in apps:
             slurm_file.write(f"export LD_PRELOAD={mpip_path}\n")
             slurm_file.write(f"export MPIP=\"-f {dir_path}/mpipProfiles\"\n")
             slurm_file.write(f"cd {app_active_dir}\n")
-            slurm_file.write(f"srun --ntasks {num_procs} --ntasks_per_node {ntasks_per_node} --nodes {num_nodes} --cpus-per-task 1 --mem 120G {app_exec} {app_input} | grep measuredTime >> {dir_path}/{app}_time.log &\n")
+            slurm_file.write(f"srun --ntasks {num_procs} --ntasks-per-node {ntasks_per_node} --nodes {num_nodes} --cpus-per-task 1 --mem 120G {app_exec} {app_input} | grep measuredTime >> {dir_path}/{app}_time.log &\n")
             slurm_file.write("wait\n")
             slurm_file.close()
             chdir("../")
