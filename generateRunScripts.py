@@ -40,13 +40,13 @@ def app_inputs(app, num_procs):
         return "-n 2048 -w "+str(num_procs)
     elif (app == "fiesta"):
         if (num_procs == 1):
-            return "../input/1_60_5000ts.lua"
+            return "../input/fiesta_1_60_5000ts.lua"
         if (num_procs == 8):
-            return "../input/8_120_5000ts.lua"
+            return "../input/fiesta_8_120_5000ts.lua"
         if (num_procs == 27):
-            return "../input/27_180_5000ts.lua"
+            return "../input/fiesta_27_180_5000ts.lua"
         if (num_procs == 64):
-            return "../input/64_240_5000ts.lua"
+            return "../input/fiesta_64_240_5000ts.lua"
     elif (app == "lammps"):
         if (num_procs == 1):
             return "../../examinimd/input/in_130_0.9.lj"
