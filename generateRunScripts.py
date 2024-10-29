@@ -95,7 +95,7 @@ for c in combinations:
         app_2_inputs = app_inputs(app_2, num_procs)
         for i in range(0,1):
             num_nodes = ceil(num_procs/MAX_PROC_PER_NODE)
-            ntasks_per_node = floor(num_procs/num_nodes)
+            ntasks_per_node = floor((num_procs*2)/num_nodes)
             # Create directories
             chdir("experiment_scripts")
             dir_name = f"coScheduled_{app_1}_{app_2}_{num_procs}_{num_nodes}_{i}"
@@ -164,7 +164,7 @@ for app in apps:
         app_input = app_inputs(app, num_procs)
         for i in range(0,1):
             num_nodes = ceil(num_procs/MAX_PROC_PER_NODE)
-            ntasks_per_node = floor(num_procs/num_nodes)
+            ntasks_per_node = floor((num_procs*2)/num_nodes)
             # Create directories
             chdir("experiment_scripts")
             dir_name = f"nonCoScheduled_{app}_{num_procs}_{num_nodes}_{i}"
