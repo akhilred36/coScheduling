@@ -8,7 +8,8 @@ mpip_path="/u/aalasand1/hpcResearch/spack/opt/spack/linux-rhel8-zen3/gcc-11.4.0/
 RUNTIME_OVERLAP_THRESHOLD=0.4
 MAX_PROC_PER_NODE = 8
 #apps = ["beatnik", "fiesta", "lammps", "lulesh", "minife"]
-apps = ["fiesta", "lammps", "lulesh", "minife"]
+#apps = ["fiesta", "lammps", "lulesh", "minife"]
+apps = ["fiesta", "lammps", "minife"]
 total_proc_choices = [1,8,27,64]
 
 single_proc_runtimes = {
@@ -49,13 +50,13 @@ def app_inputs(app, num_procs):
             return "../input/fiesta_64_240_5000ts.lua"
     elif (app == "lammps"):
         if (num_procs == 1):
-            return "../../examinimd/input/in_130_0.9.lj"
+            return "-in ../../examinimd/input/in_130_0.9.lj"
         if (num_procs == 8):
-            return "../../examinimd/input/in_260_0.9.lj"
+            return "-in ../../examinimd/input/in_260_0.9.lj"
         if (num_procs == 27):
-            return "../../examinimd/input/in_390_0.9.lj"
+            return "-in ../../examinimd/input/in_390_0.9.lj"
         if (num_procs == 64):
-            return "../../examinimd/input/in_520_0.9.lj"
+            return "-in ../../examinimd/input/in_520_0.9.lj"
     elif (app == "lulesh"):
         return "-s 110"
     elif (app == "minife"):
