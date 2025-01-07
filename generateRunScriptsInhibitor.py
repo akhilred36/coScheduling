@@ -82,7 +82,7 @@ for app_1 in apps:
                     num_nodes = ceil(num_procs/MAX_PROC_PER_NODE)
                     ntasks_per_node = ceil((num_procs*2)/num_nodes)
                     # Create directories
-                    chdir("experiment_scripts_inhib")
+                    chdir("experiment_scripts_inhibitor")
                     dir_name = f"coScheduledInhib_{app_1}_{num_procs}_{num_nodes}_{msg_size}_{wait_time}_{i}"
                     mkdir(dir_name)
                     chdir(dir_name)
