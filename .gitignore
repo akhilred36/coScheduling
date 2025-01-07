@@ -3,6 +3,7 @@
 
 # Build
 */build/*
+*.o
 
 # Data
 data/*
