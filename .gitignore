@@ -2,4 +2,7 @@
 .vscode
 
 # Build
-*/build/
+*/build/*
+
+# Data
+data/*
