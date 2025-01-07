@@ -1,3 +1,8 @@
+from os import mkdir, listdir, chdir, getcwd
+from math import floor, ceil
+
+spack_path="/u/aalasand1/hpcResearch/spack/share/spack/setup-env.sh"
+spack_env_dir="/u/aalasand1/hpcResearch/spackEnvs/environments/beatnikDeltaCPU"
 mpip_path="/u/aalasand1/hpcResearch/spack/opt/spack/linux-rhel8-zen3/gcc-11.4.0/mpip-3.5-lsk6vy4sh5usy5gjvkjquttpnjt33ong/lib/libmpiP.so"
 
 RUNTIME_OVERLAP_THRESHOLD=0.4
