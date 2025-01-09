@@ -1,0 +1,23 @@
+Tasks: 1732 total,  17 running, 1715 sleeping,   0 stopped,   0 zombie
+%Cpu(s): 12.4 us,  0.0 sy,  0.0 ni, 87.5 id,  0.0 wa,  0.1 hi,  0.0 si,  0.0 st
+MiB Mem : 257637.9 total, 209277.3 free,  36997.0 used,  11363.6 buff/cache
+MiB Swap:      0.0 total,      0.0 free,      0.0 used. 208942.3 avail Mem
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND  P
+3333219 aalasan+  20   0 1562976   1.3g  14988 R 100.0   0.5   2:34.68 lulesh   11
+3333210 aalasan+  20   0 3103148   2.7g  19116 R  99.7   1.1   2:34.18 lmp      0
+3333213 aalasan+  20   0 1606904   1.4g  14708 R  99.7   0.5   2:34.52 lulesh   8
+3333217 aalasan+  20   0 1608620   1.4g  14876 R  99.7   0.5   2:34.73 lulesh   10
+3333218 aalasan+  20   0 3103056   2.7g  19204 R  99.7   1.1   2:34.02 lmp      4
+3333221 aalasan+  20   0 1576868   1.3g  14892 R  99.7   0.5   2:34.73 lulesh   12
+3333223 aalasan+  20   0 1598876   1.3g  14876 R  99.7   0.5   2:34.74 lulesh   13
+3333224 aalasan+  20   0 1619116   1.4g  15272 R  99.7   0.5   2:34.67 lulesh   14
+3333212 aalasan+  20   0 3103000   2.7g  19016 R  99.3   1.1   2:34.38 lmp      1
+3333220 aalasan+  20   0 3103056   2.7g  19176 R  99.3   1.1   2:34.39 lmp      5
+3333222 aalasan+  20   0 3103068   2.7g  18804 R  99.3   1.1   2:34.52 lmp      6
+3333225 aalasan+  20   0 3103036   2.7g  18808 R  99.3   1.1   2:34.52 lmp      7
+3333226 aalasan+  20   0 1588372   1.3g  14852 R  99.3   0.5   2:34.58 lulesh   15
+3333214 aalasan+  20   0 3103032   2.7g  18940 R  99.0   1.1   2:34.48 lmp      2
+3333216 aalasan+  20   0 3103032   2.7g  19268 R  99.0   1.1   2:34.46 lmp      3
+3333215 aalasan+  20   0 1628856   1.4g  15076 R  98.4   0.5   2:33.87 lulesh   9
+3355046 aalasan+  20   0  277144   6436   3912 R   1.6   0.0   0:00.35 top      9

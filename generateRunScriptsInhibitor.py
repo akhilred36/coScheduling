@@ -64,10 +64,9 @@ def app_inputs(app, num_procs):
         if (num_procs == 64):
             return "--nx=600 --ny=600 --nz=600"
 
-
 # Generate co-scheduling run scripts
 
-inhib_msg_sizes = [8000000]
+inhib_msg_sizes = [1000]
 inhib_wait_times = [0]
 
 for app_1 in apps:
@@ -108,14 +107,14 @@ for app_1 in apps:
                     slurm_file.write(f"#SBATCH --account bckq-delta-cpu\n")
                     slurm_file.write(f"source {spack_path}\n")
                     slurm_file.write(f"spack env activate -d {spack_env_dir}\n")
-                    slurm_file.write(f"cd {network_inhib_path}\n") 
+                    slurm_file.write(f"cd {network_inhib_path}\n")
                     slurm_file.write(f"export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sw/spack/deltas11-2023-03/apps/linux-rhel8-zen3/gcc-11.4.0/openmpi-4.1.6-lranp74/lib/\n")
-                    slurm_file.write(f"srun --ntasks {num_procs} --ntasks-per-node {ntasks_per_node} --nodes {num_nodes} --cpus-per-task 1 --mem 120G {inhib_exec} -m {msg_size} -w {wait_time} &\n") 
+                    slurm_file.write(f"srun --ntasks {num_procs} --ntasks-per-node {int(ntasks_per_node/2)} --nodes {num_nodes} --cpus-per-task 1 --mem 120G {inhib_exec} -m {msg_size} -w {wait_time} &\n")
                     slurm_file.write(f"cd {app_1_active_dir}\n")
+                    slurm_file.write(f"export LD_PRELOAD={mpip_path}\n")
                     slurm_file.write(f"export MPIP=\"-f {dir_path}/mpipProfiles\"\n")
-                    slurm_file.write(f"srun --ntasks {num_procs} --ntasks-per-node {ntasks_per_node} --nodes {num_nodes} --cpus-per-task 1 --mem 120G {app_1_exec} {app_1_inputs} | grep measuredTime >> {dir_path}/{app_1}_time.log\n")
+                    slurm_file.write(f"srun --ntasks {num_procs} --ntasks-per-node {int(ntasks_per_node/2)} --nodes {num_nodes} --cpus-per-task 1 --mem 120G {app_1_exec} {app_1_inputs} | grep measuredTime >> {dir_path}/{app_1}_time.log\n")
                     slurm_file.write("scancel $SLURM_JOB_ID\n")
                     slurm_file.write("wait\n")
                     slurm_file.close()
                     chdir("../")
-
