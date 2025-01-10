@@ -108,7 +108,7 @@ for app_1 in apps:
                     slurm_file.write(f"source {spack_path}\n")
                     slurm_file.write(f"spack env activate -d {spack_env_dir}\n")
                     slurm_file.write(f"cd {network_inhib_path}\n")
-                    slurm_file.write(f"export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sw/spack/deltas11-2023-03/apps/linux-rhel8-zen3/gcc-11.4.0/openmpi-4.1.6-lranp74/lib/\n")
+                    # slurm_file.write(f"export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sw/spack/deltas11-2023-03/apps/linux-rhel8-zen3/gcc-11.4.0/openmpi-4.1.6-lranp74/lib/\n")
                     slurm_file.write(f"srun --ntasks {num_procs} --ntasks-per-node {int(ntasks_per_node/2)} --nodes {num_nodes} --cpus-per-task 1 --mem 120G {inhib_exec} -m {msg_size} -w {wait_time} &\n")
                     slurm_file.write(f"cd {app_1_active_dir}\n")
                     slurm_file.write(f"export LD_PRELOAD={mpip_path}\n")
