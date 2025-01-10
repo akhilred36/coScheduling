@@ -8,9 +8,10 @@ mpip_path="/u/aalasand1/hpcResearch/spack/opt/spack/linux-rhel8-zen3/gcc-11.4.0/
 RUNTIME_OVERLAP_THRESHOLD=0.4
 MAX_PROC_PER_NODE = 8
 #apps = ["beatnik", "fiesta", "lammps", "lulesh", "minife"]
-#apps = ["fiesta", "lammps", "lulesh", "minife"]
-apps = ["fiesta", "lammps", "minife"]
-total_proc_choices = [1,8,27,64]
+apps = ["lammps", "lulesh"]
+# apps = ["beatnik", "fiesta", "lammps", "lulesh", "minife"]
+total_proc_choices = [64]
+# total_proc_choices = [1,8,27,64]
 
 single_proc_runtimes = {
         "beatnik": 1363.89,
@@ -38,7 +39,7 @@ app_paths = {
 
 def app_inputs(app, num_procs):
     if (app == "beatnik"):
-        return "-n 2048 -w "+str(num_procs)
+        return "-n 2048 -w "+str(num_procs)+" -F 0"
     elif (app == "fiesta"):
         if (num_procs == 1):
             return "../input/fiesta_1_60_5000ts.lua"
@@ -94,9 +95,9 @@ for c in combinations:
     for num_procs in total_proc_choices:
         app_1_inputs = app_inputs(app_1, num_procs)
         app_2_inputs = app_inputs(app_2, num_procs)
-        for i in range(0,1):
+        for i in range(1,4):
             num_nodes = ceil(num_procs/MAX_PROC_PER_NODE)
-            ntasks_per_node = ceil((num_procs*2)/num_nodes)
+            ntasks_per_node = ceil((num_procs)/num_nodes)
             # Create directories
             chdir("experiment_scripts")
             dir_name = f"coScheduled_{app_1}_{app_2}_{num_procs}_{num_nodes}_{i}"
@@ -115,17 +116,19 @@ for c in combinations:
             slurm_file.write(f"#SBATCH --output {dir_name}.out\n")
             slurm_file.write(f"#SBATCH --error {dir_name}.err\n")
             slurm_file.write(f"#SBATCH --ntasks {num_procs*2}\n")
-            slurm_file.write(f"#SBATCH --ntasks-per-node {ntasks_per_node}\n")
+            slurm_file.write(f"#SBATCH --ntasks-per-node {ntasks_per_node*2}\n")
             slurm_file.write(f"#SBATCH --nodes {num_nodes}\n")
             slurm_file.write(f"#SBATCH --cpus-per-task 1\n")
             slurm_file.write(f"#SBATCH --mem 240G\n")
-            slurm_file.write(f"#SBATCH --time 02:00:00\n")
+            slurm_file.write(f"#SBATCH --time 03:00:00\n")
             slurm_file.write(f"#SBATCH --partition cpu\n")
             slurm_file.write(f"#SBATCH --account bckq-delta-cpu\n")
             slurm_file.write(f"source {spack_path}\n")
             slurm_file.write(f"spack env activate -d {spack_env_dir}\n")
+            slurm_file.write(f"export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sw/spack/deltas11-2023-03/apps/linux-rhel8-zen3/gcc-11.4.0/openmpi-4.1.6-lranp74/lib/\n")
             slurm_file.write(f"export LD_PRELOAD={mpip_path}\n")
             slurm_file.write(f"export MPIP=\"-f {dir_path}/mpipProfiles\"\n")
+            slurm_file.write(f"export FI_CXI_DEFAULT_CQ_SIZE=131072\nexport FI_CXI_OFLOW_BUF_SIZE=8388608\nexport FI_CXI_CQ_FILL_PERCENT=20\n")
             if (app_1_singleProcRuntime < RUNTIME_OVERLAP_THRESHOLD*app_2_singleProcRuntime):
                 slurm_file.write(f"cd {app_2_active_dir}\n")
                 slurm_file.write(f"srun --ntasks {num_procs} --ntasks-per-node {ntasks_per_node} --nodes {num_nodes} --cpus-per-task 1 --mem 120G {app_2_exec} {app_2_inputs} | grep measuredTime >> {dir_path}/{app_2}_time.log &\n")
@@ -163,9 +166,9 @@ for app in apps:
     print(f"App: {app}")
     for num_procs in total_proc_choices:
         app_input = app_inputs(app, num_procs)
-        for i in range(0,1):
+        for i in range(1,4):
             num_nodes = ceil(num_procs/MAX_PROC_PER_NODE)
-            ntasks_per_node = ceil((num_procs*2)/num_nodes)
+            ntasks_per_node = ceil((num_procs)/num_nodes)
             # Create directories
             chdir("experiment_scripts")
             dir_name = f"nonCoScheduled_{app}_{num_procs}_{num_nodes}_{i}"
@@ -185,17 +188,20 @@ for app in apps:
             slurm_file.write(f"#SBATCH --output {dir_name}.out\n")
             slurm_file.write(f"#SBATCH --error {dir_name}.err\n")
             slurm_file.write(f"#SBATCH --ntasks {num_procs}\n")
-            slurm_file.write(f"#SBATCH --ntasks-per-node {ntasks_per_node}\n")
+            slurm_file.write(f"#SBATCH --ntasks-per-node {ntasks_per_node*2}\n")
             slurm_file.write(f"#SBATCH --nodes {num_nodes}\n")
             slurm_file.write(f"#SBATCH --cpus-per-task 1\n")
             slurm_file.write(f"#SBATCH --mem 240G\n")
-            slurm_file.write(f"#SBATCH --time 02:00:00\n")
+            slurm_file.write(f"#SBATCH --time 03:00:00\n")
             slurm_file.write(f"#SBATCH --partition cpu\n")
             slurm_file.write(f"#SBATCH --account bckq-delta-cpu\n")
             slurm_file.write(f"source {spack_path}\n")
             slurm_file.write(f"spack env activate -d {spack_env_dir}\n")
+            slurm_file.write(f"export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sw/spack/deltas11-2023-03/apps/linux-rhel8-zen3/gcc-11.4.0/openmpi-4.1.6-lranp74/lib/\n")
             slurm_file.write(f"export LD_PRELOAD={mpip_path}\n")
             slurm_file.write(f"export MPIP=\"-f {dir_path}/mpipProfiles\"\n")
+            slurm_file.write(f"export MPIP=\"-f {dir_path}/mpipProfiles\"\n")
+            slurm_file.write(f"export FI_CXI_DEFAULT_CQ_SIZE=131072\nexport FI_CXI_OFLOW_BUF_SIZE=8388608\nexport FI_CXI_CQ_FILL_PERCENT=20\n")
             slurm_file.write(f"cd {app_active_dir}\n")
             slurm_file.write(f"srun --ntasks {num_procs} --ntasks-per-node {ntasks_per_node} --nodes {num_nodes} --cpus-per-task 1 --mem 120G {app_exec} {app_input} | grep measuredTime >> {dir_path}/{app}_time.log &\n")
             slurm_file.write("wait\n")
