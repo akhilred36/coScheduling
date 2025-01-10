@@ -106,6 +106,7 @@ for app_1 in apps:
                     slurm_file.write(f"#SBATCH --mem 240G\n")
                     slurm_file.write(f"#SBATCH --time 02:00:00\n")
                     slurm_file.write(f"#SBATCH --partition pbatch\n")
+                    # TODO: Add module loads
                     slurm_file.write(f"source {spack_path}\n")
                     slurm_file.write(f"spack env activate -d {spack_env_dir}\n")
                     slurm_file.write(f"cd {network_inhib_path}\n")

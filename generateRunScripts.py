@@ -122,6 +122,7 @@ for c in combinations:
             slurm_file.write(f"#SBATCH --mem 240G\n")
             slurm_file.write(f"#SBATCH --time 03:00:00\n")
             slurm_file.write(f"#SBATCH --partition pbatch\n")
+            # TODO: Add module loads
             slurm_file.write(f"source {spack_path}\n")
             slurm_file.write(f"spack env activate -d {spack_env_dir}\n")
             # TODO Update LD_PRELOAD paths
@@ -194,6 +195,7 @@ for app in apps:
             slurm_file.write(f"#SBATCH --mem 240G\n")
             slurm_file.write(f"#SBATCH --time 03:00:00\n")
             slurm_file.write(f"#SBATCH --partition pbatch\n")
+            # TODO: Add module loads
             slurm_file.write(f"source {spack_path}\n")
             slurm_file.write(f"spack env activate -d {spack_env_dir}\n")
             # TODO Update LD_PRELOAD paths
