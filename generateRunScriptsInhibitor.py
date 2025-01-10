@@ -1,6 +1,7 @@
 from os import mkdir, listdir, chdir, getcwd
 from math import floor, ceil
 
+# TODO: Change, install spack, env, mpip
 spack_path="/u/aalasand1/hpcResearch/spack/share/spack/setup-env.sh"
 spack_env_dir="/u/aalasand1/hpcResearch/spackEnvs/environments/beatnikDeltaCPU"
 mpip_path="/u/aalasand1/hpcResearch/spack/opt/spack/linux-rhel8-zen3/gcc-11.4.0/mpip-3.5-lsk6vy4sh5usy5gjvkjquttpnjt33ong/lib/libmpiP.so"
@@ -21,6 +22,7 @@ executables = {
         "inhib": "./networkInhib"
         }
 
+# TODO: Update app paths
 app_paths = {
         "beatnik": "/u/aalasand1/hpcResearch/coScheduling/apps/beatnik/build/examples",
         "fiesta": "/u/aalasand1/hpcResearch/coScheduling/apps/fiesta/build",
@@ -103,14 +105,14 @@ for app_1 in apps:
                     slurm_file.write(f"#SBATCH --cpus-per-task 1\n")
                     slurm_file.write(f"#SBATCH --mem 240G\n")
                     slurm_file.write(f"#SBATCH --time 02:00:00\n")
-                    slurm_file.write(f"#SBATCH --partition cpu\n")
-                    slurm_file.write(f"#SBATCH --account bckq-delta-cpu\n")
+                    slurm_file.write(f"#SBATCH --partition pbatch\n")
                     slurm_file.write(f"source {spack_path}\n")
                     slurm_file.write(f"spack env activate -d {spack_env_dir}\n")
                     slurm_file.write(f"cd {network_inhib_path}\n")
                     # slurm_file.write(f"export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sw/spack/deltas11-2023-03/apps/linux-rhel8-zen3/gcc-11.4.0/openmpi-4.1.6-lranp74/lib/\n")
                     slurm_file.write(f"srun --ntasks {num_procs} --ntasks-per-node {int(ntasks_per_node/2)} --nodes {num_nodes} --cpus-per-task 1 --mem 120G {inhib_exec} -m {msg_size} -w {wait_time} &\n")
                     slurm_file.write(f"cd {app_1_active_dir}\n")
+                    # TODO Update LD_PRELOAD paths
                     slurm_file.write(f"export LD_PRELOAD={mpip_path}\n")
                     slurm_file.write(f"export MPIP=\"-f {dir_path}/mpipProfiles\"\n")
                     slurm_file.write(f"srun --ntasks {num_procs} --ntasks-per-node {int(ntasks_per_node/2)} --nodes {num_nodes} --cpus-per-task 1 --mem 120G {app_1_exec} {app_1_inputs} | grep measuredTime >> {dir_path}/{app_1}_time.log\n")

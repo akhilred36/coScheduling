@@ -1,17 +1,16 @@
 from os import mkdir, listdir, chdir, getcwd
 from math import floor, ceil
 
+
+# TODO: Change, install spack, env, mpip
 spack_path="/u/aalasand1/hpcResearch/spack/share/spack/setup-env.sh"
 spack_env_dir="/u/aalasand1/hpcResearch/spackEnvs/environments/beatnikDeltaCPU"
 mpip_path="/u/aalasand1/hpcResearch/spack/opt/spack/linux-rhel8-zen3/gcc-11.4.0/mpip-3.5-lsk6vy4sh5usy5gjvkjquttpnjt33ong/lib/libmpiP.so"
 
 RUNTIME_OVERLAP_THRESHOLD=0.4
 MAX_PROC_PER_NODE = 8
-#apps = ["beatnik", "fiesta", "lammps", "lulesh", "minife"]
-apps = ["lammps", "lulesh"]
-# apps = ["beatnik", "fiesta", "lammps", "lulesh", "minife"]
-total_proc_choices = [64]
-# total_proc_choices = [1,8,27,64]
+apps = ["beatnik", "fiesta", "lammps", "lulesh", "minife"]
+total_proc_choices = [1,8,27,64]
 
 single_proc_runtimes = {
         "beatnik": 1363.89,
@@ -29,6 +28,7 @@ executables = {
         "minife": "./miniFE.x",
         }
 
+# TODO: Update app paths
 app_paths = {
         "beatnik": "/u/aalasand1/hpcResearch/coScheduling/apps/beatnik/build/examples",
         "fiesta": "/u/aalasand1/hpcResearch/coScheduling/apps/fiesta/build",
@@ -121,14 +121,14 @@ for c in combinations:
             slurm_file.write(f"#SBATCH --cpus-per-task 1\n")
             slurm_file.write(f"#SBATCH --mem 240G\n")
             slurm_file.write(f"#SBATCH --time 03:00:00\n")
-            slurm_file.write(f"#SBATCH --partition cpu\n")
-            slurm_file.write(f"#SBATCH --account bckq-delta-cpu\n")
+            slurm_file.write(f"#SBATCH --partition pbatch\n")
             slurm_file.write(f"source {spack_path}\n")
             slurm_file.write(f"spack env activate -d {spack_env_dir}\n")
-            slurm_file.write(f"export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sw/spack/deltas11-2023-03/apps/linux-rhel8-zen3/gcc-11.4.0/openmpi-4.1.6-lranp74/lib/\n")
+            # TODO Update LD_PRELOAD paths
+            # slurm_file.write(f"export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sw/spack/deltas11-2023-03/apps/linux-rhel8-zen3/gcc-11.4.0/openmpi-4.1.6-lranp74/lib/\n")
             slurm_file.write(f"export LD_PRELOAD={mpip_path}\n")
             slurm_file.write(f"export MPIP=\"-f {dir_path}/mpipProfiles\"\n")
-            slurm_file.write(f"export FI_CXI_DEFAULT_CQ_SIZE=131072\nexport FI_CXI_OFLOW_BUF_SIZE=8388608\nexport FI_CXI_CQ_FILL_PERCENT=20\n")
+            # slurm_file.write(f"export FI_CXI_DEFAULT_CQ_SIZE=131072\nexport FI_CXI_OFLOW_BUF_SIZE=8388608\nexport FI_CXI_CQ_FILL_PERCENT=20\n")
             if (app_1_singleProcRuntime < RUNTIME_OVERLAP_THRESHOLD*app_2_singleProcRuntime):
                 slurm_file.write(f"cd {app_2_active_dir}\n")
                 slurm_file.write(f"srun --ntasks {num_procs} --ntasks-per-node {ntasks_per_node} --nodes {num_nodes} --cpus-per-task 1 --mem 120G {app_2_exec} {app_2_inputs} | grep measuredTime >> {dir_path}/{app_2}_time.log &\n")
@@ -193,15 +193,15 @@ for app in apps:
             slurm_file.write(f"#SBATCH --cpus-per-task 1\n")
             slurm_file.write(f"#SBATCH --mem 240G\n")
             slurm_file.write(f"#SBATCH --time 03:00:00\n")
-            slurm_file.write(f"#SBATCH --partition cpu\n")
-            slurm_file.write(f"#SBATCH --account bckq-delta-cpu\n")
+            slurm_file.write(f"#SBATCH --partition pbatch\n")
             slurm_file.write(f"source {spack_path}\n")
             slurm_file.write(f"spack env activate -d {spack_env_dir}\n")
-            slurm_file.write(f"export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sw/spack/deltas11-2023-03/apps/linux-rhel8-zen3/gcc-11.4.0/openmpi-4.1.6-lranp74/lib/\n")
+            # TODO Update LD_PRELOAD paths
+            # slurm_file.write(f"export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sw/spack/deltas11-2023-03/apps/linux-rhel8-zen3/gcc-11.4.0/openmpi-4.1.6-lranp74/lib/\n")
             slurm_file.write(f"export LD_PRELOAD={mpip_path}\n")
             slurm_file.write(f"export MPIP=\"-f {dir_path}/mpipProfiles\"\n")
             slurm_file.write(f"export MPIP=\"-f {dir_path}/mpipProfiles\"\n")
-            slurm_file.write(f"export FI_CXI_DEFAULT_CQ_SIZE=131072\nexport FI_CXI_OFLOW_BUF_SIZE=8388608\nexport FI_CXI_CQ_FILL_PERCENT=20\n")
+            # slurm_file.write(f"export FI_CXI_DEFAULT_CQ_SIZE=131072\nexport FI_CXI_OFLOW_BUF_SIZE=8388608\nexport FI_CXI_CQ_FILL_PERCENT=20\n")
             slurm_file.write(f"cd {app_active_dir}\n")
             slurm_file.write(f"srun --ntasks {num_procs} --ntasks-per-node {ntasks_per_node} --nodes {num_nodes} --cpus-per-task 1 --mem 120G {app_exec} {app_input} | grep measuredTime >> {dir_path}/{app}_time.log &\n")
             slurm_file.write("wait\n")
