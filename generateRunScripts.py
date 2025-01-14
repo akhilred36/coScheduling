@@ -2,10 +2,9 @@ from os import mkdir, listdir, chdir, getcwd
 from math import floor, ceil
 
 
-# TODO: Change, install spack, env, mpip
-spack_path="/u/aalasand1/hpcResearch/spack/share/spack/setup-env.sh"
-spack_env_dir="/u/aalasand1/hpcResearch/spackEnvs/environments/beatnikDeltaCPU"
-mpip_path="/u/aalasand1/hpcResearch/spack/opt/spack/linux-rhel8-zen3/gcc-11.4.0/mpip-3.5-lsk6vy4sh5usy5gjvkjquttpnjt33ong/lib/libmpiP.so"
+spack_path="/g/g20/bacon4/spack/share/spack/setup-env.sh"
+spack_env_dir="/g/g20/bacon4/coScheduling/spackstuff"
+mpip_path="/g/g20/bacon4/spack/opt/spack/linux-rhel8-sapphirerapids/gcc-11.2.1/mpip-3.5-lubjpwtspfd7splvdcvgkko23svfsso3/lib/libmpiP.so"
 
 RUNTIME_OVERLAP_THRESHOLD=0.4
 MAX_PROC_PER_NODE = 8
@@ -28,13 +27,12 @@ executables = {
         "minife": "./miniFE.x",
         }
 
-# TODO: Update app paths
 app_paths = {
-        "beatnik": "/u/aalasand1/hpcResearch/coScheduling/apps/beatnik/build/examples",
-        "fiesta": "/u/aalasand1/hpcResearch/coScheduling/apps/fiesta/build",
-        "lammps": "/u/aalasand1/hpcResearch/coScheduling/apps/lammps/build",
-        "lulesh": "/u/aalasand1/hpcResearch/coScheduling/apps/lulesh/kokkos-no-uvm/build",
-        "minife": "/u/aalasand1/hpcResearch/coScheduling/apps/miniFE/kokkos/src",
+        "beatnik": "/g/g20/bacon4/coScheduling/apps/beatnik/build/examples",
+        "fiesta": "/g/g20/bacon4/coScheduling/apps/fiesta/build",
+        "lammps": "/g/g20/bacon4/coScheduling/apps/lammps/build",
+        "lulesh": "/g/g20/bacon4/coScheduling/apps/lulesh/kokkos-no-uvm/build",
+        "minife": "/g/g20/bacon4/coScheduling/apps/miniFE/kokkos/build",
         }
 
 def app_inputs(app, num_procs):
@@ -125,6 +123,7 @@ for c in combinations:
             # TODO: Add module loads
             slurm_file.write(f"source {spack_path}\n")
             slurm_file.write(f"spack env activate -d {spack_env_dir}\n")
+            slurm_file.write(f"module load gcc/11.2.1 cmake/3.23.1 openmpi/4.1.2\n")
             # TODO Update LD_PRELOAD paths
             # slurm_file.write(f"export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sw/spack/deltas11-2023-03/apps/linux-rhel8-zen3/gcc-11.4.0/openmpi-4.1.6-lranp74/lib/\n")
             slurm_file.write(f"export LD_PRELOAD={mpip_path}\n")
@@ -196,6 +195,7 @@ for app in apps:
             slurm_file.write(f"#SBATCH --time 03:00:00\n")
             slurm_file.write(f"#SBATCH --partition pbatch\n")
             # TODO: Add module loads
+            slurm_file.write(f"module load gcc/11.2.1 cmake/3.23.1 openmpi/4.1.2\n")
             slurm_file.write(f"source {spack_path}\n")
             slurm_file.write(f"spack env activate -d {spack_env_dir}\n")
             # TODO Update LD_PRELOAD paths
