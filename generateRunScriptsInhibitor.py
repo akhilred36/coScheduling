@@ -4,7 +4,7 @@ from math import floor, ceil
 # TODO: Change, install spack, env, mpip
 spack_path="/g/g20/bacon4/spack/share/spack/setup-env.sh"
 spack_env_dir="/g/g20/bacon4/coScheduling/spackstuff"
-mpip_path="/g/g20/bacon4/spack/opt/spack/linux-rhel8-sapphirerapids/gcc-11.2.1/mpip-3.5-lubjpwtspfd7splvdcvgkko23svfsso3/lib/libmpiP.so"
+mpip_path="/g/g20/bacon4/coScheduling/mpiP-3.5/libmpiP.so"
 
 RUNTIME_OVERLAP_THRESHOLD=0.4
 MAX_PROC_PER_NODE = 8
@@ -37,7 +37,7 @@ network_inhib_path = "/g/g20/bacon4/coScheduling/build/"
 
 def app_inputs(app, num_procs):
     if (app == "beatnik"):
-        return "-n 2048 -w "+str(num_procs)
+        return "-n 2048 -w "+str(num_procs) + "-F 0"
     elif (app == "fiesta"):
         if (num_procs == 1):
             return "../input/fiesta_1_60_5000ts.lua"
