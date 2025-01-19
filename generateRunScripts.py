@@ -1,10 +1,9 @@
 from os import mkdir, listdir, chdir, getcwd
 from math import floor, ceil
 
-
-spack_path="/g/g20/bacon4/spack/share/spack/setup-env.sh"
-spack_env_dir="/g/g20/bacon4/coScheduling/spackstuff"
-mpip_path="/g/g20/bacon4/coScheduling/mpiP-3.5/libmpiP.so"
+spack_path="/p/lustre1/bacon4/spack/share/spack/setup-env.sh"
+spack_env_dir="/p/lustre1/bacon4/coscheduling/spackstuff"
+mpip_path="/p/lustre1/bacon4/coscheduling/mpip-3.5/libmpip.so"
 
 RUNTIME_OVERLAP_THRESHOLD=0.4
 MAX_PROC_PER_NODE = 8
@@ -28,11 +27,11 @@ executables = {
         }
 
 app_paths = {
-        "beatnik": "/g/g20/bacon4/coScheduling/apps/beatnik/build/examples",
-        "fiesta": "/g/g20/bacon4/coScheduling/apps/fiesta/build",
-        "lammps": "/g/g20/bacon4/coScheduling/apps/lammps/build",
-        "lulesh": "/g/g20/bacon4/coScheduling/apps/lulesh/kokkos-no-uvm/build",
-        "minife": "/g/g20/bacon4/coScheduling/apps/miniFE/kokkos/build",
+        "beatnik": "/p/lustre1/bacon4/coScheduling/apps/beatnik/build/examples",
+        "fiesta": "/p/lustre1/bacon4/coScheduling/apps/fiesta/build",
+        "lammps": "/p/lustre1/bacon4/coScheduling/apps/lammps/build",
+        "lulesh": "/p/lustre1/bacon4/coScheduling/apps/lulesh/kokkos-no-uvm/build",
+        "minife": "/p/lustre1/bacon4/coScheduling/apps/miniFE/kokkos/build",
         }
 
 def app_inputs(app, num_procs):
