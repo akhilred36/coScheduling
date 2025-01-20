@@ -7,3 +7,9 @@
 
 # Data
 data/*
+
+# Scripts
+experiment_scripts/*
+experiment_scripts_inhibitor/*
+slurm_scripts/*
+slurm_scripts_inhibitor/*
