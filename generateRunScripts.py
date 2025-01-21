@@ -1,9 +1,11 @@
 from os import mkdir, listdir, chdir, getcwd
 from math import floor, ceil
 
-spack_path="/p/lustre1/bacon4/spack/share/spack/setup-env.sh"
-spack_env_dir="/p/lustre1/bacon4/coscheduling/spackstuff"
-mpip_path="/p/lustre1/bacon4/coscheduling/mpip-3.5/libmpip.so"
+spack_path="/g/g20/bacon4/spack/share/spack/setup-env.sh"
+#spack_env_dir="/p/lustre1/bacon4/coscheduling/spackstuff"
+spack_env_dir="/g/g20/bacon4/coscheduling/spackstuff"
+#mpip_path="/p/lustre1/bacon4/coscheduling/mpip-3.5/libmpip.so"
+mpip_path="/g/g20/bacon4/coscheduling/mpip-3.5/libmpip.so"
 
 RUNTIME_OVERLAP_THRESHOLD=0.4
 MAX_PROC_PER_NODE = 8
