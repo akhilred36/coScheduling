@@ -37,7 +37,7 @@ network_inhib_path = "/p/lustre1/bacon4/coScheduling/build/"
 
 def app_inputs(app, num_procs):
     if (app == "beatnik"):
-        return "-n 2048 -w "+str(num_procs) + "-F 0"
+        return "-n 2048 -w "+str(num_procs) + " -F 0"
     elif (app == "fiesta"):
         if (num_procs == 1):
             return "../input/fiesta_1_60_5000ts.lua"
