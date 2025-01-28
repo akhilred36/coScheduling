@@ -71,8 +71,9 @@ def app_inputs(app, num_procs):
 
 # Generate co-scheduling run scripts
 
-inhib_msg_sizes = [1000]
-inhib_wait_times = [0]
+#inhib_msg_sizes = [1000]
+inhib_msg_sizes = [10,100,1000,10000,100000]
+inhib_wait_times = [0,10,50,100,150,200]
 
 for app_1 in apps:
     app_1_active_dir = app_paths[app_1]
