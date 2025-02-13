@@ -55,7 +55,7 @@
 
 #include <Kokkos_Core.hpp>
 #include <Kokkos_StaticCrsGraph.hpp>
-#include <Kokkos_Vector.hpp>
+#include <Minife_Kokkos_Vector.hpp>
 
 #ifdef KOKKOS_USE_CUSPARSE
 #  include <cusparse_v2.h>
@@ -1299,7 +1299,7 @@ struct MV_MultiplyFunctor {
 	    int doalpha,
 	    int dobeta>
   void
-  MV_Multiply (typename std::enable_if<DomainVector::Rank == 2, const CoeffVector1>::type& betav,
+  MV_Multiply (typename std::enable_if<DomainVector::rank == 2, const CoeffVector1>::type& betav,
 	       const RangeVector &y,
 	       const CoeffVector2 &alphav,
 	       const TCrsMatrix &A,
@@ -1410,7 +1410,7 @@ struct MV_MultiplyFunctor {
 	   int doalpha,
 	   int dobeta>
   void
-  MV_Multiply (typename std::enable_if<DomainVector::Rank == 1, const CoeffVector1>::type& betav,
+  MV_Multiply (typename std::enable_if<DomainVector::rank == 1, const CoeffVector1>::type& betav,
 	       const RangeVector &y,
 	       const CoeffVector2 &alphav,
 	       const TCrsMatrix& A,
@@ -1674,7 +1674,7 @@ struct MV_MultiplyFunctor {
     aVector b;
     int numVecs = x.extent(1);
 
-    if(numVecs==1)
+    if(numVecs==1) {
     if (s_b == 0) {
       if (s_a == 0)
         return MV_Multiply (a, y, a, A, x, 0, 0);
@@ -1746,6 +1746,7 @@ struct MV_MultiplyFunctor {
         Kokkos::deep_copy (a, h_a);
         return MV_Multiply (b, y, a, A, x, 2, 2);
       }
+    }
     }
   }
 
