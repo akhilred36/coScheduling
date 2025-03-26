@@ -15,6 +15,7 @@ endif()
 
 add_executable(networkInhib networkInhibitor/networkInhib.cpp)
 add_executable(pingPong pingPong/pingPong.cpp)
+add_executable(pingPong_latency pingPong/pingPong_latency.cpp)
 add_executable(multiAllreduce multiAllreduce/multiAllreduce.cpp)
 
 # message(${CMAKE_CURRENT_SOURCE_DIR})
@@ -23,4 +24,5 @@ add_executable(multiAllreduce multiAllreduce/multiAllreduce.cpp)
 # This is the only thing required to set up compiler/linker flags
 target_link_libraries(networkInhib PRIVATE MPI::MPI_CXX)
 target_link_libraries(pingPong PRIVATE MPI::MPI_CXX)
+target_link_libraries(pingPong_latency PRIVATE MPI::MPI_CXX)
 target_link_libraries(multiAllreduce PRIVATE MPI::MPI_CXX)
