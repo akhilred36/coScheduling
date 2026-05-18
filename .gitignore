@@ -4,6 +4,8 @@
 # Build
 */build/*
 *.o
+*.a
+apps/tric/tric
 
 # Data
 data/*
