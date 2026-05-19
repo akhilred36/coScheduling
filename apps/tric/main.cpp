@@ -101,6 +101,7 @@ static GraphWeight randomEdgePercent = 0.0;
 static bool randomNumberLCG = false;
 static bool bufferSet = false;
 static long bufferSize = -1;
+static long numIters = 1;
 
 // parse command line parameters
 static void parseCommandLine(const int argc, char * const argv[]);
@@ -236,8 +237,12 @@ int main(int argc, char *argv[])
   MPI_Barrier(MPI_COMM_WORLD);
 
   t0 = MPI_Wtime();
-  GraphElem ntris = tr.count();
-  MPI_Barrier(MPI_COMM_WORLD);
+  std:: cout << "Running " << numIters << " iterations" << std::endl;
+  GraphElem ntris;
+  for (uint64_t i=0; i < numIters; i++) {
+    ntris = tr.count();
+    MPI_Barrier(MPI_COMM_WORLD);
+  }
   t1 = MPI_Wtime();
   double p_tot = t1 - t0, t_tot = 0.0;
 
@@ -270,7 +275,7 @@ void parseCommandLine(const int argc, char * const argv[])
 {
   int ret;
 
-  while ((ret = getopt(argc, argv, "f:r:n:p:olbs:")) != -1) {
+  while ((ret = getopt(argc, argv, "f:i:r:n:p:olbs:")) != -1) {
     switch (ret) {
       case 'f':
         inputFileName.assign(optarg);
@@ -295,6 +300,9 @@ void parseCommandLine(const int argc, char * const argv[])
       case 's':
         bufferSet = true;
         bufferSize = atol(optarg);
+        break;
+      case 'i':
+        numIters = atol(optarg);
         break;
       default:
         assert(0 && "Should not reach here!!");
