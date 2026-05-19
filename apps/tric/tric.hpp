@@ -104,6 +104,8 @@ class Triangulate
         {
             delete []sbuf_;
             delete []sreq_;
+            sbuf_ctr_ = 0;
+            sreq_ctr_ = 0;
         }
 
         // TODO

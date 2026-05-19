@@ -129,6 +129,7 @@ class TriangulateAggrFatCompressed
             delete []sbuf_disp_;
             delete []send_counts_;
             delete []recv_counts_;
+            sbuf_ctr_ = nullptr;
         }
 
         // TODO

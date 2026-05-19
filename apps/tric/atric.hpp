@@ -113,6 +113,8 @@ class TriangulateAggr
             delete []sbuf_ctr_;
             delete []send_counts_;
             delete []recv_counts_;
+            sbuf_ctr_ = nullptr;
+            sreq_ctr_ = 0;
         }
 
         // TODO
