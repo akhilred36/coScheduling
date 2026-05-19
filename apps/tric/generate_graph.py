@@ -60,7 +60,9 @@ if __name__ == "__main__":
 
         # Generate random edges (0-indexed vertices)
         random_edges = []
-        for _ in range(E):
+        for i in range(E):
+            if not (i % 100):
+                print(f"Progress: {i}/{E}")
             src = random.randint(0, V-1)
             tgt = random.randint(0, V-1)
             if src != tgt:  # Avoid self-loops

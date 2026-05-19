@@ -6,6 +6,7 @@
 *.o
 *.a
 apps/tric/tric
+apps/miniVite/miniVite
 
 # Data
 data/*
