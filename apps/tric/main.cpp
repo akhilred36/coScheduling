@@ -195,76 +195,82 @@ int main(int argc, char *argv[])
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-#if defined(NO_AGGR)
-  Triangulate tr(g);
-#elif defined(PART_AGGR)
-  TriangulateAggr tr(g);
-#elif defined(AGGR_COLL)
-  TriangulateAggrFat tr(g);
-#elif defined(COLL_DTYPE)
-  TriangulateAggrFatDtype tr(g);
-#elif defined(COLL_BATCH)
-  TriangulateAggrFatBatch tr(g);
-#elif defined(REMOTE_HASH)
-  TriangulateHashRemote tr(g);
-#elif defined(MAP_NCOLL)
-  TriangulateMapNcol tr(g);
-#elif defined(AGGR_BUFR) || defined(AGGR_BUFR_INRECV) || defined(AGGR_BUFR_IRECV) || defined(AGGR_BUFR_RMA) || defined(AGGR_HEUR) || defined(AGGR_MAP) || defined(AGGR_HASH) || defined(AGGR_HASH2) || defined(AGGR_PUSH)
-  if (bufferSize < 100)
-    bufferSize = DEFAULT_BUF_SIZE;
-#if defined(AGGR_BUFR)
-  TriangulateAggrBuffered tr(g, bufferSize);
-#elif defined(AGGR_BUFR_IRECV)
-  TriangulateAggrBufferedIrecv tr(g, bufferSize);
-#elif defined(AGGR_BUFR_INRECV)
-  TriangulateAggrBufferedInrecv tr(g, bufferSize);
-#elif defined(AGGR_BUFR_RMA)
-  TriangulateAggrBufferedRMA tr(g, bufferSize);
-#elif defined(AGGR_MAP)
-  TriangulateAggrBufferedMap tr(g, bufferSize);
-#elif defined(AGGR_HASH)
-  TriangulateAggrBufferedHash tr(g, bufferSize);
-#elif defined(AGGR_HASH2)
-  TriangulateAggrBufferedHash2 tr(g, bufferSize);
-#elif defined(AGGR_PUSH)
-  TriangulateAggrBufferedHashPush tr(g, bufferSize);
-#else
-  TriangulateAggrBufferedHeuristics tr(g, bufferSize);
-#endif
-#else
-  TriangulateAggrFatCompressed tr(g);
-#endif
-  MPI_Barrier(MPI_COMM_WORLD);
+  if (me == 0)
+    std:: cout << "Running " << numIters << " iterations" << std::endl;
 
-  t0 = MPI_Wtime();
-  std:: cout << "Running " << numIters << " iterations" << std::endl;
-  GraphElem ntris;
-  for (uint64_t i=0; i < numIters; i++) {
+  for (uint64_t i=0; i<numIters; i++) {
+  if (me == 0)
+    std:: cout << "Running " << "iter: "<< i << std::endl;
+  #if defined(NO_AGGR)
+    Triangulate tr(g);
+  #elif defined(PART_AGGR)
+    TriangulateAggr tr(g);
+  #elif defined(AGGR_COLL)
+    TriangulateAggrFat tr(g);
+  #elif defined(COLL_DTYPE)
+    TriangulateAggrFatDtype tr(g);
+  #elif defined(COLL_BATCH)
+    TriangulateAggrFatBatch tr(g);
+  #elif defined(REMOTE_HASH)
+    TriangulateHashRemote tr(g);
+  #elif defined(MAP_NCOLL)
+    TriangulateMapNcol tr(g);
+  #elif defined(AGGR_BUFR) || defined(AGGR_BUFR_INRECV) || defined(AGGR_BUFR_IRECV) || defined(AGGR_BUFR_RMA) || defined(AGGR_HEUR) || defined(AGGR_MAP) || defined(AGGR_HASH) || defined(AGGR_HASH2) || defined(AGGR_PUSH)
+    if (bufferSize < 100)
+      bufferSize = DEFAULT_BUF_SIZE;
+  #if defined(AGGR_BUFR)
+    TriangulateAggrBuffered tr(g, bufferSize);
+  #elif defined(AGGR_BUFR_IRECV)
+    TriangulateAggrBufferedIrecv tr(g, bufferSize);
+  #elif defined(AGGR_BUFR_INRECV)
+    TriangulateAggrBufferedInrecv tr(g, bufferSize);
+  #elif defined(AGGR_BUFR_RMA)
+    TriangulateAggrBufferedRMA tr(g, bufferSize);
+  #elif defined(AGGR_MAP)
+    TriangulateAggrBufferedMap tr(g, bufferSize);
+  #elif defined(AGGR_HASH)
+    TriangulateAggrBufferedHash tr(g, bufferSize);
+  #elif defined(AGGR_HASH2)
+    TriangulateAggrBufferedHash2 tr(g, bufferSize);
+  #elif defined(AGGR_PUSH)
+    TriangulateAggrBufferedHashPush tr(g, bufferSize);
+  #else
+    TriangulateAggrBufferedHeuristics tr(g, bufferSize);
+  #endif
+  #else
+    TriangulateAggrFatCompressed tr(g);
+  #endif
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    t0 = MPI_Wtime();
+    GraphElem ntris;
+    
     ntris = tr.count();
     MPI_Barrier(MPI_COMM_WORLD);
+
+    t1 = MPI_Wtime();
+    double p_tot = t1 - t0, t_tot = 0.0;
+
+    MPI_Reduce(&p_tot, &t_tot, 1, MPI_DOUBLE,
+        MPI_SUM, 0, MPI_COMM_WORLD);
+    if (me == 0)
+    {   double avg_t = (double)(t_tot/(double)nprocs);
+      std::cout << "Average execution time (secs.) for distributed counting on " << nprocs << " processes: "
+        << avg_t << std::endl;
+
+  #if defined(AGGR_BUFR) || defined(AGGR_BUFR_INRECV) || defined(AGGR_BUFR_IRECV) || defined(AGGR_BUFR_RMA) || defined(AGGR_HEUR) || defined(AGGR_MAP) || defined(AGGR_HASH) || defined(AGGR_HASH2) || defined(AGGR_PUSH)
+
+      std::cout << "User initialized per-PE buffer count: " << bufferSize << std::endl;
+  #endif
+      std::cout << "Number of triangles: " << ntris << std::endl;
+
+      std::cout << "TEPS: " << g->get_ne()/avg_t << std::endl;
+      std::cout << "Resolution of MPI_Wtime: " << MPI_Wtick() << std::endl;
+    }
+
+    tr.clear();
+    MPI_Barrier(MPI_COMM_WORLD);
   }
-  t1 = MPI_Wtime();
-  double p_tot = t1 - t0, t_tot = 0.0;
-
-  MPI_Reduce(&p_tot, &t_tot, 1, MPI_DOUBLE,
-      MPI_SUM, 0, MPI_COMM_WORLD);
-  if (me == 0)
-  {   double avg_t = (double)(t_tot/(double)nprocs);
-    std::cout << "Average execution time (secs.) for distributed counting on " << nprocs << " processes: "
-      << avg_t << std::endl;
-
-#if defined(AGGR_BUFR) || defined(AGGR_BUFR_INRECV) || defined(AGGR_BUFR_IRECV) || defined(AGGR_BUFR_RMA) || defined(AGGR_HEUR) || defined(AGGR_MAP) || defined(AGGR_HASH) || defined(AGGR_HASH2) || defined(AGGR_PUSH)
-
-    std::cout << "User initialized per-PE buffer count: " << bufferSize << std::endl;
-#endif
-    std::cout << "Number of triangles: " << ntris << std::endl;
-
-    std::cout << "TEPS: " << g->get_ne()/avg_t << std::endl;
-    std::cout << "Resolution of MPI_Wtime: " << MPI_Wtick() << std::endl;
-  }
-
-  tr.clear();
-  MPI_Barrier(MPI_COMM_WORLD);
 
   MPI_Finalize();
 
