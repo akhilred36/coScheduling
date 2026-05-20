@@ -2,12 +2,17 @@
     "beatnik": {
         "-F": 0,
         "-n": 1200,
-        "-w": 1
+        "-w": 56,
+        "-t": 30
     },
     "minife": {
     },
     "tricount": {
         "-f": "3000000_90000000.bin",
+        "-i": "250"
+    },
+    "minivite": {
+        "-f": "/p/lustre2/alasandagutt1/tric_graphs/3000000_90000000.bin",
         "-i": "250"
     },
     "lammps": {

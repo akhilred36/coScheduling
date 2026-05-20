@@ -12,7 +12,7 @@ LINK = mpicxx
 # Kokkos Settings:
 
 KOKKOS_DEVICES = Serial
-KOKKOS_ARCH = AMDAVX
+KOKKOS_ARCH = ICL
 
 # MiniFE Settings:
 MINIFE_TYPES =  \
@@ -32,14 +32,14 @@ MAKEFILE_PATH := $(subst Makefile,,$(abspath $(lastword $(MAKEFILE_LIST))))
 
 MINIFE_PATH = ${MAKEFILE_PATH}..
 
-KOKKOS_PATH ?= /u/aalasand1/hpcResearch/kokkos
+KOKKOS_PATH ?= /g/g90/alasandagutt1/repos/kokkos
 KOKKOS_PATH_INC ?= ${KOKKOS_PATH}
 
 all:generate_info miniFE.x
 
 CXXFLAGS = -O3
 
-LDFLAGS = -O3 -L/u/aalasand1/hpcResearch/spackEnvs/environments/beatnikDeltaCPU/.spack-env/view/lib
+LDFLAGS = -O3 -L/g/g90/alasandagutt1/spack_envs/beatnik/.spack-env/view/lib
 
 MINIFE_INCLUDES  = -I./ -I${MINIFE_PATH} -I${MINIFE_PATH}/src -I${MINIFE_PATH}/kokkos/linalg/src
 MINIFE_INCLUDES += -I${MINIFE_PATH}/fem -I${MINIFE_PATH}/utils -I${MINIFE_PATH}/common

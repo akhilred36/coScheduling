@@ -67,7 +67,7 @@ void get_parameters(int argc, char** argv, Parameters& params)
   params.nx = Mantevo::parse_parameter<int>(argstring, "nx", 10);
   params.ny = Mantevo::parse_parameter<int>(argstring, "ny", params.nx);
   params.nz = Mantevo::parse_parameter<int>(argstring, "nz", params.ny);
-  params.nz = Mantevo::parse_parameter<int>(argstring, "i", params.max_iters);
+  params.max_iters = Mantevo::parse_parameter<unsigned int>(argstring, "iters", 200);
   params.load_imbalance =
       Mantevo::parse_parameter<float>(argstring, "load_imbalance", 0);
   params.numthreads = Mantevo::parse_parameter<int>(argstring, "numthreads", 1);
