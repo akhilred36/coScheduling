@@ -1548,7 +1548,7 @@ GraphWeight distLouvainMethod(const int me, const int nprocs, const Graph& dg,
                                     constantForSecondTerm, me);
 
     // exit criteria
-    if (currMod - prevMod < thresh) break;
+    // if (currMod - prevMod < thresh) break;
 
     prevMod = currMod;
     if (prevMod < lower) prevMod = lower;
