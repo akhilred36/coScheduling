@@ -32,18 +32,32 @@
 
 namespace miniFE {
 
-struct Parameters {
+struct Parameters
+{
   Parameters()
-   : nx(5), ny(nx), nz(nx), numthreads(1),
-     mv_overlap_comm_comp(0), use_locking(0),
-     load_imbalance(0), name(), elem_group_size(1),
-     use_elem_mat_fields(1), verify_solution(0),
-     device(0),num_devices(2),skip_device(9999),numa(1)
-  {}
+      : nx(5),
+        ny(nx),
+        nz(nx),
+        numthreads(1),
+        max_iters(200),
+        mv_overlap_comm_comp(0),
+        use_locking(0),
+        load_imbalance(0),
+        name(),
+        elem_group_size(1),
+        use_elem_mat_fields(1),
+        verify_solution(0),
+        device(0),
+        num_devices(2),
+        skip_device(9999),
+        numa(1)
+  {
+  }
 
   int nx;
   int ny;
   int nz;
+  unsigned int max_iters;
   int numthreads;
   int mv_overlap_comm_comp;
   int use_locking;
@@ -56,9 +70,8 @@ struct Parameters {
   int num_devices;
   int skip_device;
   int numa;
-};//struct Parameters
+};  // struct Parameters
 
-}//namespace miniFE
+}  // namespace miniFE
 
 #endif
-

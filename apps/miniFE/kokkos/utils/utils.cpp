@@ -26,10 +26,10 @@
 // ************************************************************************
 //@HEADER
 
-#include <string>
+#include <fstream>
 #include <iostream>
 #include <sstream>
-#include <fstream>
+#include <string>
 
 #ifdef HAVE_MPI
 #include <mpi.h>
@@ -43,8 +43,8 @@
 #include <tbb/task_scheduler_init.h>
 #endif
 
-#include <param_utils.hpp>
 #include <Parameters.hpp>
+#include <param_utils.hpp>
 #include <utils.hpp>
 
 namespace miniFE {
@@ -59,25 +59,34 @@ void get_parameters(int argc, char** argv, Parameters& params)
   std::string filename =
       Mantevo::parse_parameter<std::string>(argstring, "input_file", garbage);
 
-  if (filename != garbage) {
+  if (filename != garbage)
+  {
     Mantevo::read_file_into_string(filename, argstring);
   }
 
   params.nx = Mantevo::parse_parameter<int>(argstring, "nx", 10);
   params.ny = Mantevo::parse_parameter<int>(argstring, "ny", params.nx);
   params.nz = Mantevo::parse_parameter<int>(argstring, "nz", params.ny);
+  params.nz = Mantevo::parse_parameter<int>(argstring, "i", params.max_iters);
   params.load_imbalance =
       Mantevo::parse_parameter<float>(argstring, "load_imbalance", 0);
   params.numthreads = Mantevo::parse_parameter<int>(argstring, "numthreads", 1);
-  params.mv_overlap_comm_comp = Mantevo::parse_parameter<int>(argstring, "mv_overlap_comm_comp", 0);
-  params.use_locking = Mantevo::parse_parameter<int>(argstring, "use_locking", 0);
-  params.name = Mantevo::parse_parameter<std::string>(argstring, "name","");
-  params.elem_group_size = Mantevo::parse_parameter<int>(argstring, "elem_group_size", 1);
-  params.use_elem_mat_fields = Mantevo::parse_parameter<int>(argstring, "use_elem_mat_fields", 1);
-  params.verify_solution = Mantevo::parse_parameter<int>(argstring, "verify_solution", 0);
+  params.mv_overlap_comm_comp =
+      Mantevo::parse_parameter<int>(argstring, "mv_overlap_comm_comp", 0);
+  params.use_locking =
+      Mantevo::parse_parameter<int>(argstring, "use_locking", 0);
+  params.name = Mantevo::parse_parameter<std::string>(argstring, "name", "");
+  params.elem_group_size =
+      Mantevo::parse_parameter<int>(argstring, "elem_group_size", 1);
+  params.use_elem_mat_fields =
+      Mantevo::parse_parameter<int>(argstring, "use_elem_mat_fields", 1);
+  params.verify_solution =
+      Mantevo::parse_parameter<int>(argstring, "verify_solution", 0);
   params.device = Mantevo::parse_parameter<int>(argstring, "device", 0);
-  params.num_devices = Mantevo::parse_parameter<int>(argstring, "num_devices", 2);
-  params.skip_device = Mantevo::parse_parameter<int>(argstring, "skip_device", 9999);
+  params.num_devices =
+      Mantevo::parse_parameter<int>(argstring, "num_devices", 2);
+  params.skip_device =
+      Mantevo::parse_parameter<int>(argstring, "skip_device", 9999);
   params.numa = Mantevo::parse_parameter<int>(argstring, "numa", 1);
 }
 
@@ -86,9 +95,19 @@ void broadcast_parameters(Parameters& params)
 {
 #ifdef HAVE_MPI
   const int num_int_params = 13;
-  int iparams[num_int_params] = {params.nx, params.ny, params.nz, params.numthreads, params.mv_overlap_comm_comp, params.use_locking,
-		     params.elem_group_size, params.use_elem_mat_fields, params.verify_solution,
-		     params.device, params.num_devices,params.skip_device,params.numa};
+  int iparams[num_int_params] = {params.nx,
+                                 params.ny,
+                                 params.nz,
+                                 params.numthreads,
+                                 params.mv_overlap_comm_comp,
+                                 params.use_locking,
+                                 params.elem_group_size,
+                                 params.use_elem_mat_fields,
+                                 params.verify_solution,
+                                 params.device,
+                                 params.num_devices,
+                                 params.skip_device,
+                                 params.numa};
   MPI_Bcast(&iparams[0], num_int_params, MPI_INT, 0, MPI_COMM_WORLD);
   params.nx = iparams[0];
   params.ny = iparams[1];
@@ -132,5 +151,4 @@ void finalize_mpi()
 #endif
 }
 
-}//namespace miniFE
-
+}  // namespace miniFE
