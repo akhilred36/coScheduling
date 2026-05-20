@@ -1,22 +1,28 @@
 "apps": {
     "beatnik": {
         "-F": 0,
-        "-n": 1200,
+        "-n": 2400,
         "-w": 56,
-        "-t": 30
+        "-t": 10
     },
     "minife": {
+        "--nx": 600,
+        "--ny": 600,
+        "--nz": 600,
+        "--iters": 800
     },
     "tricount": {
-        "-f": "3000000_90000000.bin",
-        "-i": "250"
+        "-f": "/p/lustre2/alasandagutt1/tric_graphs/9000000_270000000.bin",
+        "-i": "70"
     },
     "minivite": {
-        "-f": "/p/lustre2/alasandagutt1/tric_graphs/3000000_90000000.bin",
-        "-i": "250"
+        "-f": "/p/lustre2/alasandagutt1/tric_graphs/9000000_270000000.bin",
+        "-i": "60"
     },
     "lammps": {
+        "-in": "../../examinimd/input/in_420_0.9_100.lj"
     },
     "fiesta": {
+        "": "../input/fiesta_56_500_100ts.lua"
     }
 }
