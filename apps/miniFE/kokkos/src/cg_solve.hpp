@@ -151,7 +151,8 @@ cg_solve(OperatorType& A,
   std::ostream& os = outstream();
   os << "brkdown_tol = " << brkdown_tol << std::endl;
 #endif
-  for(LocalOrdinalType k=1; k <= max_iter && normr > tolerance; ++k) {
+  // for(LocalOrdinalType k=1; k <= max_iter && normr > tolerance; ++k) {
+  for(LocalOrdinalType k=1; k <= max_iter; ++k) { // Run exactly max_iter
     if (k == 1) {
       TICK(); waxpby(one, r, zero, r, p); TOCK(tWAXPY);
     }
