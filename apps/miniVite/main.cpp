@@ -35,23 +35,20 @@
 // ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 //
-// ************************************************************************ 
+// ************************************************************************
 
-
+#include <mpi.h>
+#include <omp.h>
 #include <sys/resource.h>
 #include <sys/time.h>
 #include <unistd.h>
 
 #include <cassert>
 #include <cstdlib>
-
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string>
-
-#include <omp.h>
-#include <mpi.h>
 
 #include "dspl.hpp"
 
@@ -68,29 +65,35 @@ static GraphWeight randomEdgePercent = 0.0;
 static bool randomNumberLCG = false;
 static bool isUnitEdgeWeight = true;
 static GraphWeight threshold = 1.0E-6;
+static unsigned int numIters = 10;
 
 // parse command line parameters
-static void parseCommandLine(const int argc, char * const argv[]);
+static void parseCommandLine(const int argc, char* const argv[]);
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
   double t0, t1, t2, t3, ti = 0.0;
 #ifdef DISABLE_THREAD_MULTIPLE_CHECK
   MPI_Init(&argc, &argv);
-#else  
+#else
   int max_threads;
 
   max_threads = omp_get_max_threads();
 
-  if (max_threads > 1) {
-      int provided;
-      MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
-      if (provided < MPI_THREAD_MULTIPLE) {
-          std::cerr << "MPI library does not support MPI_THREAD_MULTIPLE." << std::endl;
-          MPI_Abort(MPI_COMM_WORLD, -99);
-      }
-  } else {
-      MPI_Init(&argc, &argv);
+  if (max_threads > 1)
+  {
+    int provided;
+    MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
+    if (provided < MPI_THREAD_MULTIPLE)
+    {
+      std::cerr << "MPI library does not support MPI_THREAD_MULTIPLE."
+                << std::endl;
+      MPI_Abort(MPI_COMM_WORLD, -99);
+    }
+  }
+  else
+  {
+    MPI_Init(&argc, &argv);
   }
 #endif
 
@@ -108,42 +111,45 @@ int main(int argc, char *argv[])
   Graph* g = nullptr;
 
   // generate graph only supports RGG as of now
-  if (generateGraph) { 
-      GenerateRGG gr(nvRGG);
-      g = gr.generate(randomNumberLCG, isUnitEdgeWeight, randomEdgePercent);
+  if (generateGraph)
+  {
+    GenerateRGG gr(nvRGG);
+    g = gr.generate(randomNumberLCG, isUnitEdgeWeight, randomEdgePercent);
   }
-  else { // read input graph
-      BinaryEdgeList rm;
-      if (readBalanced == true)
-          g = rm.read_balanced(me, nprocs, ranksPerNode, inputFileName);
-      else
-          g = rm.read(me, nprocs, ranksPerNode, inputFileName);
+  else
+  {  // read input graph
+    BinaryEdgeList rm;
+    if (readBalanced == true)
+      g = rm.read_balanced(me, nprocs, ranksPerNode, inputFileName);
+    else
+      g = rm.read(me, nprocs, ranksPerNode, inputFileName);
   }
 
   assert(g != nullptr);
-  if (showGraph)
-      g->print();
+  if (showGraph) g->print();
 
-#ifdef PRINT_DIST_STATS 
+#ifdef PRINT_DIST_STATS
   g->print_dist_stats();
 #endif
 
   MPI_Barrier(MPI_COMM_WORLD);
-#ifdef DEBUG_PRINTF  
+#ifdef DEBUG_PRINTF
   assert(g);
-#endif  
+#endif
   td1 = MPI_Wtime();
   td = td1 - td0;
 
   MPI_Reduce(&td, &tdt, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
- 
-  if (me == 0)  {
-      if (!generateGraph)
-          std::cout << "Time to read input file and create distributed graph (in s): " 
-              << (tdt/nprocs) << std::endl;
-      else
-          std::cout << "Time to generate distributed graph of " 
-              << nvRGG << " vertices (in s): " << (tdt/nprocs) << std::endl;
+
+  if (me == 0)
+  {
+    if (!generateGraph)
+      std::cout
+          << "Time to read input file and create distributed graph (in s): "
+          << (tdt / nprocs) << std::endl;
+    else
+      std::cout << "Time to generate distributed graph of " << nvRGG
+                << " vertices (in s): " << (tdt / nprocs) << std::endl;
   }
 
   GraphWeight currMod = -1.0;
@@ -156,17 +162,17 @@ int main(int argc, char *argv[])
 #endif
   size_t ssz = 0, rsz = 0;
   int iters = 0;
-    
+
   MPI_Barrier(MPI_COMM_WORLD);
 
   t1 = MPI_Wtime();
 
 #if defined(USE_MPI_RMA)
-  currMod = distLouvainMethod(me, nprocs, *g, ssz, rsz, ssizes, rsizes, 
-                svdata, rvdata, currMod, threshold, iters, commwin);
+  currMod = distLouvainMethod(me, nprocs, *g, ssz, rsz, ssizes, rsizes, svdata,
+                              rvdata, currMod, threshold, iters, commwin);
 #else
-  currMod = distLouvainMethod(me, nprocs, *g, ssz, rsz, ssizes, rsizes, 
-                svdata, rvdata, currMod, threshold, iters);
+  currMod = distLouvainMethod(me, nprocs, *g, ssz, rsz, ssizes, rsizes, svdata,
+                              rvdata, currMod, threshold, iters, numIters);
 #endif
   MPI_Barrier(MPI_COMM_WORLD);
   t0 = MPI_Wtime();
@@ -175,24 +181,34 @@ int main(int argc, char *argv[])
   double tot_time = 0.0;
   MPI_Reduce(&total, &tot_time, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
 
-  if (me == 0) {
-      double avgt = (tot_time / nprocs);
-      if (!generateGraph) {
-        std::cout << "-------------------------------------------------------" << std::endl;
-        std::cout << "File: " << inputFileName << std::endl;
-        std::cout << "-------------------------------------------------------" << std::endl;
-      }
-      std::cout << "-------------------------------------------------------" << std::endl;
+  if (me == 0)
+  {
+    double avgt = (tot_time / nprocs);
+    if (!generateGraph)
+    {
+      std::cout << "-------------------------------------------------------"
+                << std::endl;
+      std::cout << "File: " << inputFileName << std::endl;
+      std::cout << "-------------------------------------------------------"
+                << std::endl;
+    }
+    std::cout << "-------------------------------------------------------"
+              << std::endl;
 #ifdef USE_32_BIT_GRAPH
-      std::cout << "32-bit datatype" << std::endl;
+    std::cout << "32-bit datatype" << std::endl;
 #else
-      std::cout << "64-bit datatype" << std::endl;
+    std::cout << "64-bit datatype" << std::endl;
 #endif
-      std::cout << "-------------------------------------------------------" << std::endl;
-      std::cout << "Average total time (in s), #Processes: " << avgt << ", " << nprocs << std::endl;
-      std::cout << "Modularity, #Iterations: " << currMod << ", " << iters << std::endl;
-      std::cout << "MODS (final modularity * average time): " << (currMod * avgt) << std::endl;
-      std::cout << "-------------------------------------------------------" << std::endl;
+    std::cout << "-------------------------------------------------------"
+              << std::endl;
+    std::cout << "Average total time (in s), #Processes: " << avgt << ", "
+              << nprocs << std::endl;
+    std::cout << "Modularity, #Iterations: " << currMod << ", " << iters
+              << std::endl;
+    std::cout << "MODS (final modularity * average time): " << (currMod * avgt)
+              << std::endl;
+    std::cout << "-------------------------------------------------------"
+              << std::endl;
   }
 
   MPI_Barrier(MPI_COMM_WORLD);
@@ -203,76 +219,94 @@ int main(int argc, char *argv[])
   MPI_Finalize();
 
   return 0;
-} // main
+}  // main
 
-void parseCommandLine(const int argc, char * const argv[])
+void parseCommandLine(const int argc, char* const argv[])
 {
   int ret;
 
-  while ((ret = getopt(argc, argv, "f:br:t:n:wlp:s")) != -1) {
-    switch (ret) {
-    case 'f':
-      inputFileName.assign(optarg);
-      break;
-    case 'b':
-      readBalanced = true;
-      break;
-    case 'r':
-      ranksPerNode = atoi(optarg);
-      break;
-    case 't':
-      threshold = atof(optarg);
-      break;
-    case 'n':
-      nvRGG = atol(optarg);
-      if (nvRGG > 0)
-          generateGraph = true; 
-      break;
-    case 'w':
-      isUnitEdgeWeight = false;
-      break;
-    case 'l':
-      randomNumberLCG = true;
-      break;
-    case 'p':
-      randomEdgePercent = atof(optarg);
-      break;
-    case 's':
-      showGraph = true;
-      break;
-    default:
-      assert(0 && "Option not recognized!!!");
-      break;
+  while ((ret = getopt(argc, argv, "f:i:br:t:n:wlp:s")) != -1)
+  {
+    switch (ret)
+    {
+      case 'f':
+        inputFileName.assign(optarg);
+        break;
+      case 'b':
+        readBalanced = true;
+        break;
+      case 'r':
+        ranksPerNode = atoi(optarg);
+        break;
+      case 't':
+        threshold = atof(optarg);
+        break;
+      case 'n':
+        nvRGG = atol(optarg);
+        if (nvRGG > 0) generateGraph = true;
+        break;
+      case 'w':
+        isUnitEdgeWeight = false;
+        break;
+      case 'l':
+        randomNumberLCG = true;
+        break;
+      case 'p':
+        randomEdgePercent = atof(optarg);
+        break;
+      case 's':
+        showGraph = true;
+        break;
+      case 'i':
+        numIters = atoi(optarg);
+        break;
+      default:
+        assert(0 && "Option not recognized!!!");
+        break;
     }
   }
 
-  if (me == 0 && (argc == 1)) {
-      std::cerr << "Must specify some options." << std::endl;
-      MPI_Abort(MPI_COMM_WORLD, -99);
+  if (me == 0 && (argc == 1))
+  {
+    std::cerr << "Must specify some options." << std::endl;
+    MPI_Abort(MPI_COMM_WORLD, -99);
   }
-  
-  if (me == 0 && !generateGraph && inputFileName.empty()) {
-      std::cerr << "Must specify a binary file name with -f or provide parameters for generating a graph." << std::endl;
-      MPI_Abort(MPI_COMM_WORLD, -99);
+
+  if (me == 0 && !generateGraph && inputFileName.empty())
+  {
+    std::cerr << "Must specify a binary file name with -f or provide "
+                 "parameters for generating a graph."
+              << std::endl;
+    MPI_Abort(MPI_COMM_WORLD, -99);
   }
-   
-  if (me == 0 && !generateGraph && randomNumberLCG) {
-      std::cerr << "Must specify -g for graph generation using LCG." << std::endl;
-      MPI_Abort(MPI_COMM_WORLD, -99);
-  } 
-   
-  if (me == 0 && !generateGraph && (randomEdgePercent > 0.0)) {
-      std::cerr << "Must specify -g for graph generation first to add random edges to it." << std::endl;
-      MPI_Abort(MPI_COMM_WORLD, -99);
-  } 
-  
-  if (me == 0 && !generateGraph && !isUnitEdgeWeight) {
-      std::cerr << "Must specify -g for graph generation first before setting edge weights." << std::endl;
-      MPI_Abort(MPI_COMM_WORLD, -99);
+
+  if (me == 0 && !generateGraph && randomNumberLCG)
+  {
+    std::cerr << "Must specify -g for graph generation using LCG." << std::endl;
+    MPI_Abort(MPI_COMM_WORLD, -99);
   }
-  
-  if (me == 0 && generateGraph && ((randomEdgePercent < 0) || (randomEdgePercent >= 100))) {
-      std::cerr << "Invalid random edge percentage for generated graph!" << std::endl;
-      MPI_Abort(MPI_COMM_WORLD, -99);
+
+  if (me == 0 && !generateGraph && (randomEdgePercent > 0.0))
+  {
+    std::cerr << "Must specify -g for graph generation first to add random "
+                 "edges to it."
+              << std::endl;
+    MPI_Abort(MPI_COMM_WORLD, -99);
   }
-} // parseCommandLine
+
+  if (me == 0 && !generateGraph && !isUnitEdgeWeight)
+  {
+    std::cerr << "Must specify -g for graph generation first before setting "
+                 "edge weights."
+              << std::endl;
+    MPI_Abort(MPI_COMM_WORLD, -99);
+  }
+
+  if (me == 0 && generateGraph &&
+      ((randomEdgePercent < 0) || (randomEdgePercent >= 100)))
+  {
+    std::cerr << "Invalid random edge percentage for generated graph!"
+              << std::endl;
+    MPI_Abort(MPI_COMM_WORLD, -99);
+  }
+}  // parseCommandLine
