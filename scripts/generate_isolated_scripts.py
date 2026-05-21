@@ -125,7 +125,7 @@ for num_nodes in node_choices:
             exec_full_path = os.path.join(base_repo_path, app_info.get("path", ""), exec_path)
             output_log = os.path.join(data_subdir, "output.log")
             
-            srun_command = f"srun -n {num_cpus} --distribution=block:block --cpu-bind=cores env LD_PRELOAD=\"{mpip_path}\" MPIP=\"-f {mpip_profiles_dir}\" {exec_full_path}{args_str} > {output_log} 2>&1"
+            srun_command = f"time srun -n {num_cpus} --distribution=block:block --cpu-bind=cores env LD_PRELOAD=\"{mpip_path}\" MPIP=\"-f {mpip_profiles_dir}\" {exec_full_path}{args_str} > {output_log} 2>&1"
             slurm_content += srun_command + "\n"
             
             # Write the SLURM file

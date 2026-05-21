@@ -37,19 +37,18 @@
 //
 // ************************************************************************
 
+#include <mpi.h>
 #include <sys/resource.h>
 #include <sys/time.h>
 #include <unistd.h>
 
 #include <cassert>
+#include <chrono>
 #include <cstdlib>
-
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string>
-
-#include <mpi.h>
 #if defined(USE_OPENMP)
 #include <omp.h>
 #endif
@@ -64,30 +63,30 @@
 #include "dfastric.hpp"
 #elif defined(COLL_BATCH)
 #include "bfastric.hpp"
-#elif defined(AGGR_BUFR) // aggregate buffered
+#elif defined(AGGR_BUFR)  // aggregate buffered
 #include "bufastric.hpp"
-#elif defined(AGGR_BUFR_IRECV) // aggregate buffered using irecvs
+#elif defined(AGGR_BUFR_IRECV)  // aggregate buffered using irecvs
 #include "ibufastric.hpp"
-#elif defined(AGGR_BUFR_INRECV) // aggregate buffered using multiple irecvs
+#elif defined(AGGR_BUFR_INRECV)  // aggregate buffered using multiple irecvs
 #include "inbufastric.hpp"
 #elif defined(AGGR_BUFR_RMA)
 #error This version may hang due to a bug!!!
 #include "rmabufastric.hpp"
-#elif defined(AGGR_HEUR) // comm-avoiding heuristics
+#elif defined(AGGR_HEUR)  // comm-avoiding heuristics
 #include "hbufastric.hpp"
-#elif defined(AGGR_HASH) // one-way hash-based edge query + buffered comm
+#elif defined(AGGR_HASH)  // one-way hash-based edge query + buffered comm
 #include "hashfastric.hpp"
-#elif defined(AGGR_HASH2) // one-way hash-based edge query + buffered comm
+#elif defined(AGGR_HASH2)  // one-way hash-based edge query + buffered comm
 #include "hashfastric2.hpp"
-#elif defined(AGGR_PUSH) // two-way hash-based edge query + buffered comm
+#elif defined(AGGR_PUSH)  // two-way hash-based edge query + buffered comm
 #include "bhashfastric.hpp"
-#elif defined(REMOTE_HASH) // one-way hash-based edge query + bulk comm
+#elif defined(REMOTE_HASH)  // one-way hash-based edge query + bulk comm
 #include "chashfastric.hpp"
-#elif defined(AGGR_MAP) // aggregate buffered + heuristics using map
+#elif defined(AGGR_MAP)  // aggregate buffered + heuristics using map
 #include "mbufastric.hpp"
-#elif defined(MAP_NCOLL) // heuristics using map and multiple irecvs
+#elif defined(MAP_NCOLL)  // heuristics using map and multiple irecvs
 #include "mbufastric2.hpp"
-#else // compressed - high memory overhead
+#else  // compressed - high memory overhead
 #include "cfastric.hpp"
 #endif
 
@@ -104,10 +103,12 @@ static long bufferSize = -1;
 static long numIters = 1;
 
 // parse command line parameters
-static void parseCommandLine(const int argc, char * const argv[]);
+static void parseCommandLine(const int argc, char* const argv[]);
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
+  std::chrono::time_point<std::chrono::system_clock> start, end;
+  start = std::chrono::system_clock::now();
   double t0, t1, td, td0, td1;
 
 #if defined(DISABLE_THREAD_MULTIPLE_CHECK) || !defined(USE_OPENMP)
@@ -117,15 +118,20 @@ int main(int argc, char *argv[])
 
   max_threads = omp_get_max_threads();
 
-  if (max_threads > 1) {
-      int provided;
-      MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
-      if (provided < MPI_THREAD_MULTIPLE) {
-          std::cerr << "MPI library does not support MPI_THREAD_MULTIPLE." << std::endl;
-          MPI_Abort(MPI_COMM_WORLD, -99);
-      }
-  } else {
-      MPI_Init(&argc, &argv);
+  if (max_threads > 1)
+  {
+    int provided;
+    MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
+    if (provided < MPI_THREAD_MULTIPLE)
+    {
+      std::cerr << "MPI library does not support MPI_THREAD_MULTIPLE."
+                << std::endl;
+      MPI_Abort(MPI_COMM_WORLD, -99);
+    }
+  }
+  else
+  {
+    MPI_Init(&argc, &argv);
   }
 #endif
 
@@ -144,21 +150,25 @@ int main(int argc, char *argv[])
   {
     if (!is_pwr2(nprocs))
     {
-      std::cout << "Error: random geometric graph generation require power-of-2 #processes." << std::endl;
+      std::cout << "Error: random geometric graph generation require "
+                   "power-of-2 #processes."
+                << std::endl;
       MPI_Abort(MPI_COMM_WORLD, -99);
     }
     GenerateRGG gr(nvRGG);
-    g = gr.generate(randomNumberLCG, true /*isUnitEdgeWeight*/, randomEdgePercent);
+    g = gr.generate(randomNumberLCG, true /*isUnitEdgeWeight*/,
+                    randomEdgePercent);
   }
   else
-  {   // read input graph
+  {  // read input graph
     BinaryEdgeList rm;
     if (readBalanced == true)
     {
       if (me == 0)
       {
         std::cout << std::endl;
-        std::cout << "Trying to balance the edge distribution while reading: " << std::endl;
+        std::cout << "Trying to balance the edge distribution while reading: "
+                  << std::endl;
         std::cout << inputFileName << std::endl;
       }
       g = rm.read_balanced(me, nprocs, ranksPerNode, inputFileName);
@@ -186,85 +196,94 @@ int main(int argc, char *argv[])
   if (me == 0)
   {
     if (!generateGraph)
-      std::cout << "Time to read input file and create distributed graph (secs.): "
-        << tdt << std::endl;
+      std::cout
+          << "Time to read input file and create distributed graph (secs.): "
+          << tdt << std::endl;
     else
-      std::cout << "Time to generate distributed graph of "
-        << nvRGG << " vertices (secs.): " << tdt << std::endl;
+      std::cout << "Time to generate distributed graph of " << nvRGG
+                << " vertices (secs.): " << tdt << std::endl;
   }
 
   MPI_Barrier(MPI_COMM_WORLD);
 
   if (me == 0)
-    std:: cout << "Running " << numIters << " iterations" << std::endl;
+    std::cout << "Running " << numIters << " iterations" << std::endl;
 
-  for (uint64_t i=0; i<numIters; i++) {
-  if (me == 0)
-    std:: cout << "Running " << "iter: "<< i << std::endl;
-  #if defined(NO_AGGR)
+  for (uint64_t i = 0; i < numIters; i++)
+  {
+    if (me == 0)
+      std::cout << "Running "
+                << "iter: " << i << std::endl;
+#if defined(NO_AGGR)
     Triangulate tr(g);
-  #elif defined(PART_AGGR)
+#elif defined(PART_AGGR)
     TriangulateAggr tr(g);
-  #elif defined(AGGR_COLL)
+#elif defined(AGGR_COLL)
     TriangulateAggrFat tr(g);
-  #elif defined(COLL_DTYPE)
+#elif defined(COLL_DTYPE)
     TriangulateAggrFatDtype tr(g);
-  #elif defined(COLL_BATCH)
+#elif defined(COLL_BATCH)
     TriangulateAggrFatBatch tr(g);
-  #elif defined(REMOTE_HASH)
+#elif defined(REMOTE_HASH)
     TriangulateHashRemote tr(g);
-  #elif defined(MAP_NCOLL)
+#elif defined(MAP_NCOLL)
     TriangulateMapNcol tr(g);
-  #elif defined(AGGR_BUFR) || defined(AGGR_BUFR_INRECV) || defined(AGGR_BUFR_IRECV) || defined(AGGR_BUFR_RMA) || defined(AGGR_HEUR) || defined(AGGR_MAP) || defined(AGGR_HASH) || defined(AGGR_HASH2) || defined(AGGR_PUSH)
-    if (bufferSize < 100)
-      bufferSize = DEFAULT_BUF_SIZE;
-  #if defined(AGGR_BUFR)
+#elif defined(AGGR_BUFR) || defined(AGGR_BUFR_INRECV) ||             \
+    defined(AGGR_BUFR_IRECV) || defined(AGGR_BUFR_RMA) ||            \
+    defined(AGGR_HEUR) || defined(AGGR_MAP) || defined(AGGR_HASH) || \
+    defined(AGGR_HASH2) || defined(AGGR_PUSH)
+    if (bufferSize < 100) bufferSize = DEFAULT_BUF_SIZE;
+#if defined(AGGR_BUFR)
     TriangulateAggrBuffered tr(g, bufferSize);
-  #elif defined(AGGR_BUFR_IRECV)
+#elif defined(AGGR_BUFR_IRECV)
     TriangulateAggrBufferedIrecv tr(g, bufferSize);
-  #elif defined(AGGR_BUFR_INRECV)
+#elif defined(AGGR_BUFR_INRECV)
     TriangulateAggrBufferedInrecv tr(g, bufferSize);
-  #elif defined(AGGR_BUFR_RMA)
+#elif defined(AGGR_BUFR_RMA)
     TriangulateAggrBufferedRMA tr(g, bufferSize);
-  #elif defined(AGGR_MAP)
+#elif defined(AGGR_MAP)
     TriangulateAggrBufferedMap tr(g, bufferSize);
-  #elif defined(AGGR_HASH)
+#elif defined(AGGR_HASH)
     TriangulateAggrBufferedHash tr(g, bufferSize);
-  #elif defined(AGGR_HASH2)
+#elif defined(AGGR_HASH2)
     TriangulateAggrBufferedHash2 tr(g, bufferSize);
-  #elif defined(AGGR_PUSH)
+#elif defined(AGGR_PUSH)
     TriangulateAggrBufferedHashPush tr(g, bufferSize);
-  #else
+#else
     TriangulateAggrBufferedHeuristics tr(g, bufferSize);
-  #endif
-  #else
+#endif
+#else
     TriangulateAggrFatCompressed tr(g);
-  #endif
+#endif
     MPI_Barrier(MPI_COMM_WORLD);
 
     t0 = MPI_Wtime();
     GraphElem ntris;
-    
+
     ntris = tr.count();
     MPI_Barrier(MPI_COMM_WORLD);
 
     t1 = MPI_Wtime();
     double p_tot = t1 - t0, t_tot = 0.0;
 
-    MPI_Reduce(&p_tot, &t_tot, 1, MPI_DOUBLE,
-        MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(&p_tot, &t_tot, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
     if (me == 0)
-    {   double avg_t = (double)(t_tot/(double)nprocs);
-      std::cout << "Average execution time (secs.) for distributed counting on " << nprocs << " processes: "
-        << avg_t << std::endl;
+    {
+      double avg_t = (double)(t_tot / (double)nprocs);
+      std::cout << "Average execution time (secs.) for distributed counting on "
+                << nprocs << " processes: " << avg_t << std::endl;
 
-  #if defined(AGGR_BUFR) || defined(AGGR_BUFR_INRECV) || defined(AGGR_BUFR_IRECV) || defined(AGGR_BUFR_RMA) || defined(AGGR_HEUR) || defined(AGGR_MAP) || defined(AGGR_HASH) || defined(AGGR_HASH2) || defined(AGGR_PUSH)
+#if defined(AGGR_BUFR) || defined(AGGR_BUFR_INRECV) ||               \
+    defined(AGGR_BUFR_IRECV) || defined(AGGR_BUFR_RMA) ||            \
+    defined(AGGR_HEUR) || defined(AGGR_MAP) || defined(AGGR_HASH) || \
+    defined(AGGR_HASH2) || defined(AGGR_PUSH)
 
-      std::cout << "User initialized per-PE buffer count: " << bufferSize << std::endl;
-  #endif
+      std::cout << "User initialized per-PE buffer count: " << bufferSize
+                << std::endl;
+#endif
       std::cout << "Number of triangles: " << ntris << std::endl;
 
-      std::cout << "TEPS: " << g->get_ne()/avg_t << std::endl;
+      std::cout << "TEPS: " << g->get_ne() / avg_t << std::endl;
       std::cout << "Resolution of MPI_Wtime: " << MPI_Wtick() << std::endl;
     }
 
@@ -273,16 +292,20 @@ int main(int argc, char *argv[])
   }
 
   MPI_Finalize();
-
+  end = std::chrono::system_clock::now();
+  std::chrono::duration<double> elapsed_seconds = end - start;
+  std::cout << "measuredTime " << elapsed_seconds.count() << std::endl;
   return 0;
 }
 
-void parseCommandLine(const int argc, char * const argv[])
+void parseCommandLine(const int argc, char* const argv[])
 {
   int ret;
 
-  while ((ret = getopt(argc, argv, "f:i:r:n:p:olbs:")) != -1) {
-    switch (ret) {
+  while ((ret = getopt(argc, argv, "f:i:r:n:p:olbs:")) != -1)
+  {
+    switch (ret)
+    {
       case 'f':
         inputFileName.assign(optarg);
         break;
@@ -294,8 +317,7 @@ void parseCommandLine(const int argc, char * const argv[])
         break;
       case 'n':
         nvRGG = atol(optarg);
-        if (nvRGG > 0)
-          generateGraph = true;
+        if (nvRGG > 0) generateGraph = true;
         break;
       case 'l':
         randomNumberLCG = true;
@@ -320,8 +342,10 @@ void parseCommandLine(const int argc, char * const argv[])
 
   if (me == 0 && generateGraph && readBalanced)
   {
-    std::cout << "Balanced read (option -b) is only applicable for real-world graphs. "
-      << "This option does nothing for generated (synthetic) graphs." << std::endl;
+    std::cout << "Balanced read (option -b) is only applicable for real-world "
+                 "graphs. "
+              << "This option does nothing for generated (synthetic) graphs."
+              << std::endl;
   }
 
   // errors
@@ -333,7 +357,9 @@ void parseCommandLine(const int argc, char * const argv[])
 
   if (me == 0 && !generateGraph && inputFileName.empty())
   {
-    std::cerr << "Must specify a binary file name with -f or provide parameters for generating a graph." << std::endl;
+    std::cerr << "Must specify a binary file name with -f or provide "
+                 "parameters for generating a graph."
+              << std::endl;
     MPI_Abort(MPI_COMM_WORLD, -99);
   }
 
@@ -345,13 +371,17 @@ void parseCommandLine(const int argc, char * const argv[])
 
   if (me == 0 && !generateGraph && (randomEdgePercent > 0.0))
   {
-    std::cerr << "Must specify -g for graph generation first to add random edges to it." << std::endl;
+    std::cerr << "Must specify -g for graph generation first to add random "
+                 "edges to it."
+              << std::endl;
     MPI_Abort(MPI_COMM_WORLD, -99);
   }
 
-  if (me == 0 && generateGraph && ((randomEdgePercent < 0.0) || (randomEdgePercent >= 100.0)))
+  if (me == 0 && generateGraph &&
+      ((randomEdgePercent < 0.0) || (randomEdgePercent >= 100.0)))
   {
-    std::cerr << "Invalid random edge percentage for generated graph!" << std::endl;
+    std::cerr << "Invalid random edge percentage for generated graph!"
+              << std::endl;
     MPI_Abort(MPI_COMM_WORLD, -99);
   }
-} // parseCommandLine
+}  // parseCommandLine

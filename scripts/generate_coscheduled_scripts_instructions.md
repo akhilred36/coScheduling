@@ -52,11 +52,11 @@ The following variables can be modified by the user. Set them at a convenient lo
                 3) spack env activate "spack_env_dir"
                 4) Run the following for app "a" and redirect the output to "output_a.log" in the appropriate "num_nodes_a_b_i" directory pertaining to this particular run. The "exec" and "args" are derived from the .json file. The resources for this srun are half of what were allocated in the batch script.
                 ```
-                srun --exclusive -n num_cpus/2 --mem mem/2 --distribution=block:block --cpu-bind=cores env LD_PRELOAD="mpip_path" MPIP="-f <path/to/num_nodes_a_b_i/mpip_profiles>" ./exec <args> &
+                time srun --exclusive -n num_cpus/2 --mem mem/2 --distribution=block:block --cpu-bind=cores env LD_PRELOAD="mpip_path" MPIP="-f <path/to/num_nodes_a_b_i/mpip_profiles>" ./exec <args> &
                 ```
             5) Run the following for app "b" and redirect the output to "output_a.log" in the appropriate "num_nodes_a_b_i" directory pertaining to this particular run. The "exec" and "args" are derived from the .json file. The resources for this srun are half of what were allocated in the batch script.
                 ```
-                srun --exclusive -n num_cpus/2 --mem mem/2 --distribution=block:block --cpu-bind=cores env LD_PRELOAD="mpip_path" MPIP="-f <path/to/num_nodes_a_b_i/mpip_profiles>" ./exec <args> &
+                time srun --exclusive -n num_cpus/2 --mem mem/2 --distribution=block:block --cpu-bind=cores env LD_PRELOAD="mpip_path" MPIP="-f <path/to/num_nodes_a_b_i/mpip_profiles>" ./exec <args> &
                 ```
             6) Now wait for them to complete:
             ```wait```

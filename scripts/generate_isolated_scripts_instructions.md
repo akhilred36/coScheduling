@@ -52,5 +52,5 @@ The following variables can be modified by the user. Set them at a convenient lo
                 3) spack env activate "spack_env_dir"
                 4) Run the following and redirect the output to "output.log" in the appropriate "num_nodes_a_i" directory pertaining to this particular run. The "exec" and "args" are derived from the .json file.
                 ```
-                srun -n num_cpus --distribution=block:block --cpu-bind=cores env LD_PRELOAD="mpip_path" MPIP="-f <path/to/num_nodes_a_i/mpip_profiles>" ./exec <args>
+                time srun -n num_cpus --distribution=block:block --cpu-bind=cores env LD_PRELOAD="mpip_path" MPIP="-f <path/to/num_nodes_a_i/mpip_profiles>" ./exec <args>
                 ```

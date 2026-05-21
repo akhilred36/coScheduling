@@ -44,6 +44,7 @@
 #include <unistd.h>
 
 #include <cassert>
+#include <chrono>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -72,6 +73,8 @@ static void parseCommandLine(const int argc, char* const argv[]);
 
 int main(int argc, char* argv[])
 {
+  std::chrono::time_point<std::chrono::system_clock> start, end;
+  start = std::chrono::system_clock::now();
   double t0, t1, t2, t3, ti = 0.0;
 #ifdef DISABLE_THREAD_MULTIPLE_CHECK
   MPI_Init(&argc, &argv);
@@ -217,6 +220,9 @@ int main(int argc, char* argv[])
   destroyCommunityMPIType();
 
   MPI_Finalize();
+  end = std::chrono::system_clock::now();
+  std::chrono::duration<double> elapsed_seconds = end - start;
+  std::cout << "measuredTime " << elapsed_seconds.count() << std::endl;
 
   return 0;
 }  // main

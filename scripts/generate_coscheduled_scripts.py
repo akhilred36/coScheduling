@@ -130,11 +130,11 @@ def generate_slurm_content(num_nodes, app_a, app_b, run_id, apps_dict, data_dir)
     mpip_profile_dir = os.path.join(data_dir, "mpip_profiles")
     
     # Run app a
-    srun_a = f'srun --exclusive -n {tasks_per_app} --mem {mem_per_app} --distribution=block:block --cpu-bind=cores env LD_PRELOAD="{mpip_path}" MPIP="-f {mpip_profile_dir}" {exec_a} {args_a} &'
+    srun_a = f'time srun --exclusive -n {tasks_per_app} --mem {mem_per_app} --distribution=block:block --cpu-bind=cores env LD_PRELOAD="{mpip_path}" MPIP="-f {mpip_profile_dir}" {exec_a} {args_a} &'
     script_lines.append(srun_a)
     
     # Run app b
-    srun_b = f'srun --exclusive -n {tasks_per_app} --mem {mem_per_app} --distribution=block:block --cpu-bind=cores env LD_PRELOAD="{mpip_path}" MPIP="-f {mpip_profile_dir}" {exec_b} {args_b} &'
+    srun_b = f'time srun --exclusive -n {tasks_per_app} --mem {mem_per_app} --distribution=block:block --cpu-bind=cores env LD_PRELOAD="{mpip_path}" MPIP="-f {mpip_profile_dir}" {exec_b} {args_b} &'
     script_lines.append(srun_b)
     
     # Wait for both to complete
