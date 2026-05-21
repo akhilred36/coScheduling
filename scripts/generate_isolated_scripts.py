@@ -27,7 +27,7 @@ spack_env_dir = "/g/g90/alasandagutt1/spack_envs/beatnik/"
 mpip_path = "/g/g90/alasandagutt1/spack_envs/beatnik/.spack-env/view/lib/libmpiP.so"
 run_configs_path = "/g/g90/alasandagutt1/repos/coScheduling/run_configs/"
 base_repo_path = "/g/g90/alasandagutt1/"
-experiments_path = "/p/lustre2/alasandagutt1/experiments/"
+experiments_path = "/p/lustre2/alasandagutt1/experiments_coscheduling_isolated/"
 
 # =============================================================================
 # Main script logic

@@ -9,7 +9,7 @@ Write a python script, scripts/generate_isolated_scripts.py to do as follows. Ma
 4) "mpip_path" is:```/g/g90/alasandagutt1/spack_envs/beatnik/.spack-env/view/lib/libmpiP.so```
 5) "run_configs_path" is:```/g/g90/alasandagutt1/repos/coScheduling/run_configs/```. The format of .json files in this directory is ```<num_nodes>_nodes.json```. For example, ```1_nodes.json``` refers to configurations for 1 node runs
 6) "base_repo_path" is:```/g/g90/alasandagutt1/```. All of the paths shown in run_configs_path json files are relative to "base_repo_path"
-7) "experiments_path" is ```/p/lustre2/alasandagutt1/experiments/```
+7) "experiments_path" is ```/p/lustre2/alasandagutt1/experiments_coscheduling_isolated/```
 
 ## Script variables
 The following variables can be modified by the user. Set them at a convenient location at the top of the script:
@@ -21,7 +21,7 @@ The following variables can be modified by the user. Set them at a convenient lo
 6) "mem": "120G"
 
 ## The script
-1) At the beginning of the script, check if "experiments_path" exists. If it doesn't exist, create the "experiments" directory in "experiments_path" and cd into it. If it exists, simply cd into it
+1) At the beginning of the script, check if "experiments_path" exists. If it doesn't exist, create the "experiments_coscheduling_isolated" directory in "experiments_path" and cd into it. If it exists, simply cd into it
 2) Create a new directory with a name that is the current timestamp, and cd into it
 3) Create a directory called "slurm_scripts", and create a directory called "data".
 4) Iterate through "node_choices", and the iterating variable is called "num_nodes":
