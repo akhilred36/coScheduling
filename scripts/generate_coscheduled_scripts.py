@@ -19,7 +19,7 @@ redundant_runs = 4
 walltime = "00:45:00"
 email = "aalasand1@unm.edu"
 num_cpus = 112
-mem = "240G"
+mem = 240
 
 # =============================================================================
 # IMPORTANT VARIABLES (DO NOT MODIFY)
@@ -84,7 +84,7 @@ def generate_slurm_header(num_nodes, app_a, app_b, run_id):
 #SBATCH --ntasks {num_cpus}
 #SBATCH --ntasks-per-node {num_cpus}
 #SBATCH --nodes {num_nodes}
-#SBATCH --mem {mem}
+#SBATCH --mem {mem}G
 #SBATCH --time {walltime}
 #SBATCH --partition pbatch
 #SBATCH --distribution block:cyclic
@@ -116,7 +116,7 @@ def generate_slurm_content(num_nodes, app_a, app_b, run_id, apps_dict, data_dir)
 
     # Calculate resources for each app (half of allocated)
     tasks_per_app = num_cpus // 2
-    mem_per_app = mem  # Note: mem is a string, we keep it as is
+    mem_per_app = (mem // 2) - 1
 
     # Format arguments for each app
     args_a = format_args(app_a_config["args"])
@@ -134,11 +134,11 @@ def generate_slurm_content(num_nodes, app_a, app_b, run_id, apps_dict, data_dir)
     output_log_b = os.path.join(data_dir, f"output_{app_b}.log")
 
     # Run app a
-    srun_a = f'time srun --exclusive -n {tasks_per_app} --mem {mem_per_app} --distribution=block:block --cpu-bind=cores env LD_PRELOAD="{mpip_path}" MPIP="-f {mpip_profile_dir}" {exec_a} {args_a} > {output_log_a} 2>&1 &'
+    srun_a = f'time srun --exclusive -n {tasks_per_app} --mem {mem_per_app}G --distribution=block:block --cpu-bind=cores env LD_PRELOAD="{mpip_path}" MPIP="-f {mpip_profile_dir}" {exec_a} {args_a} > {output_log_a} 2>&1 &'
     script_lines.append(srun_a)
 
     # Run app b
-    srun_b = f'time srun --exclusive -n {tasks_per_app} --mem {mem_per_app} --distribution=block:block --cpu-bind=cores env LD_PRELOAD="{mpip_path}" MPIP="-f {mpip_profile_dir}" {exec_b} {args_b} > {output_log_b} 2>&1 &'
+    srun_b = f'time srun --exclusive -n {tasks_per_app} --mem {mem_per_app}G --distribution=block:block --cpu-bind=cores env LD_PRELOAD="{mpip_path}" MPIP="-f {mpip_profile_dir}" {exec_b} {args_b} > {output_log_b} 2>&1 &'
     script_lines.append(srun_b)
 
     # Wait for both to complete

@@ -37,7 +37,7 @@
           }
       },
       "lammps": {
-          "path": "apps/lammps/build/src/",
+          "path": "apps/lammps/build/",
           "exec": "lmp",
           "args": {
               "-in": "/g/g90/alasandagutt1/repos/coScheduling/apps/examinimd/input/in_420_0.9_100.lj"
