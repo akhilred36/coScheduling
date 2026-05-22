@@ -2,6 +2,7 @@
 #include <unistd.h>
 
 #include <chrono>
+#include <cmath>
 #include <iostream>
 #include <memory>
 #include <thread>
@@ -11,8 +12,7 @@
 
 using namespace std;
 
-
-static uint64_t seed = 12345; // default seed
+static uint64_t seed = 12345;  // default seed
 int mpiRank;
 int numProcs;
 long waitTime;
@@ -24,130 +24,248 @@ vector<double*> sendBuffers;
 vector<double*> recvBuffers;
 MPI_Request* sendReqs;
 MPI_Request* recvReqs;
+vector<vector<int>>
+    deterministicTargets;  // For deterministic mode: stores which processes
+                           // each process sends to
 
-void srand_lcg(uint64_t s) {
-    seed = s;
-}
+void srand_lcg(uint64_t s) { seed = s; }
 
 // Returns a pseudo-random number in [0, 2^31 - 1]
-uint32_t rand_lcg(void) {
-    seed = seed * 6364136223846793005ULL + 1442695040888963407ULL;
-    return (uint32_t)(seed >> 33);
+uint32_t rand_lcg(void)
+{
+  seed = seed * 6364136223846793005ULL + 1442695040888963407ULL;
+  return (uint32_t)(seed >> 33);
 }
 
 void fillArray(double* array, int size)
 {
-    double lower_bound = 0;
-    double upper_bound = 1000000;
-    for (int i = 0; i < size; i++)
+  double lower_bound = 0;
+  double upper_bound = 1000000;
+  for (int i = 0; i < size; i++)
+  {
+    array[i] = lower_bound + (rand_lcg() / (double)(1ULL << 31)) *
+                                 (upper_bound - lower_bound);
+  }
+}
+
+void generateDeterministicTargets()
+{
+  int targetsPerProcess = round(commSparsity * numProcs);
+  deterministicTargets.resize(numProcs);
+
+  for (int sender = 0; sender < numProcs; sender++)
+  {
+    // Use hash-based selection for deterministic targets
+    uint64_t hashSeed = seed + sender;
+    srand_lcg(hashSeed);
+
+    vector<int> available(numProcs);
+    for (int i = 0; i < numProcs; i++) available[i] = i;
+
+    for (int t = 0; t < targetsPerProcess; t++)
     {
-        array[i] = lower_bound + (rand_lcg() / (double)(1ULL << 31)) * (upper_bound - lower_bound);
+      int idx = rand_lcg() % available.size();
+      deterministicTargets[sender].push_back(available[idx]);
+      available[idx] = available.back();
+      available.pop_back();
     }
+  }
 }
 
 void inhib()
 {
-    int count = 0;
-    // while (1)
-    for (unsigned long i = 0; i < iters; i++)
+  int count = 0;
+  // while (1)
+  for (unsigned long i = 0; i < iters; i++)
+  {
+    std::chrono::steady_clock::time_point begin =
+        std::chrono::steady_clock::now();
+
+    // Generate send targets based on mode
+    vector<vector<int>> sendTargets;
+    if (commMode == 'd')
     {
-        std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-        for (int j = 0; j < numProcs; j++)
-        {
-            MPI_Isend(sendBuffers.at(j), msgSize * 1000, MPI_DOUBLE, j, 0,
-                      MPI_COMM_WORLD, &(sendReqs[j]));
-            MPI_Irecv(recvBuffers.at(j), msgSize * 1000, MPI_DOUBLE, j, 0,
-                      MPI_COMM_WORLD, &(recvReqs[j]));
-        }
-        MPI_Waitall(numProcs, sendReqs, MPI_STATUSES_IGNORE);
-        MPI_Waitall(numProcs, recvReqs, MPI_STATUSES_IGNORE);
-        chrono::steady_clock::time_point end = chrono::steady_clock::now();
-        auto duration = chrono::duration_cast<chrono::milliseconds>(end - begin).count();
-        if (duration < waitTime)
-        {
-            auto remainingTime = waitTime - duration;
-            this_thread::sleep_for(chrono::milliseconds(remainingTime));
-        }
-        count++;
-        MPI_Barrier(MPI_COMM_WORLD);
+      sendTargets = deterministicTargets;
     }
+    else
+    {
+      // Random mode: generate new pattern each iteration
+      int targetsPerProcess = round(commSparsity * numProcs);
+      sendTargets.resize(numProcs);
+      for (int sender = 0; sender < numProcs; sender++)
+      {
+        for (int t = 0; t < targetsPerProcess; t++)
+        {
+          int dest = rand_lcg() % numProcs;
+          // Avoid duplicates and self
+          bool found = false;
+          for (int existing : sendTargets[sender])
+          {
+            if (existing == dest)
+            {
+              found = true;
+              break;
+            }
+          }
+          if (!found && dest != sender)
+          {
+            sendTargets[sender].push_back(dest);
+          }
+          else
+          {
+            t--;  // Retry
+          }
+        }
+      }
+    }
+
+    // Count total sends for this iteration
+    int totalSends = 0;
+    for (const auto& targets : sendTargets)
+    {
+      totalSends += targets.size();
+    }
+
+    // Resize requests if needed
+    if (totalSends > numProcs)
+    {
+      delete[] sendReqs;
+      delete[] recvReqs;
+      sendReqs = new MPI_Request[totalSends];
+      recvReqs = new MPI_Request[totalSends];
+    }
+
+    int reqIdx = 0;
+    for (int j = 0; j < numProcs; j++)
+    {
+      for (int dest : sendTargets[j])
+      {
+        MPI_Isend(sendBuffers.at(j), msgSize * 1000, MPI_DOUBLE, dest, 0,
+                  MPI_COMM_WORLD, &(sendReqs[reqIdx]));
+        reqIdx++;
+      }
+    }
+
+    // Reset reqIdx for receives
+    reqIdx = 0;
+    for (int j = 0; j < numProcs; j++)
+    {
+      for (int src : sendTargets[j])
+      {
+        MPI_Irecv(recvBuffers.at(j), msgSize * 1000, MPI_DOUBLE, src, 0,
+                  MPI_COMM_WORLD, &(recvReqs[reqIdx]));
+        reqIdx++;
+      }
+    }
+
+    MPI_Waitall(totalSends, sendReqs, MPI_STATUSES_IGNORE);
+    MPI_Waitall(totalSends, recvReqs, MPI_STATUSES_IGNORE);
+    chrono::steady_clock::time_point end = chrono::steady_clock::now();
+    auto duration =
+        chrono::duration_cast<chrono::milliseconds>(end - begin).count();
+    if (duration < waitTime)
+    {
+      auto remainingTime = waitTime - duration;
+      this_thread::sleep_for(chrono::milliseconds(remainingTime));
+    }
+    count++;
+    MPI_Barrier(MPI_COMM_WORLD);
+  }
 }
 
 int main(int argc, char** argv)
 {
-    MPI_Init(&argc, &argv);
-    MPI_Comm_rank(MPI_COMM_WORLD, &mpiRank);
-    MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
+  MPI_Init(&argc, &argv);
+  MPI_Comm_rank(MPI_COMM_WORLD, &mpiRank);
+  MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
 
-    long waitTime, msgSize;
-    float commSparsity;
-    char commMode;
-    waitTime = 100;
-    msgSize = 1000;
-    commSparsity = 1.0;
-    commMode = 'd'; // -d: Deterministic, -r: Random
-    iters = 1000;
+  long waitTime, msgSize;
+  float commSparsity;
+  char commMode;
+  waitTime = 100;
+  msgSize = 1000;
+  commSparsity = 1.0;
+  commMode = 'd';  // -d: Deterministic, -r: Random
+  iters = 1000;
 
-    int flags, opt;
-    while ((opt = getopt(argc, argv, "m:w:s:i:")) != -1)
+  int flags, opt;
+  while ((opt = getopt(argc, argv, "m:w:s:c:i:")) != -1)
+  {
+    switch (opt)
     {
-        switch (opt)
+      case 'm':
+        msgSize = atol(optarg);
+        break;
+      case 'w':
+        waitTime = atol(optarg);
+        break;
+      case 's':
+        commSparsity = atof(optarg);
+        if ((commSparsity >= 0) && (commSparsity <= 1)) break;
+      case 'c':
+        commMode = optarg[0];
+        if (commMode != 'd' && commMode != 'r')
         {
-            case 'm':
-                msgSize = atol(optarg);
-                break;
-            case 'w':
-                waitTime = atol(optarg);
-                break;
-            case 's':
-                commSparsity = atof(optarg);
-                if ((commSparsity >= 0) && (commSparsity <= 1))
-                    break;
-            case 'i':
-                iters = (unsigned long) atol(optarg);
-                break;
-            default:
-                cerr << "Usage: " << argv[0]
-                     << " -m <message size (kb)> -w <wait time (ms)> -s <communication sparsity (0<=s<=1)>" << endl;
-                return -1;
+          cerr << "Error: commMode must be 'd' (deterministic) or 'r' (random)"
+               << endl;
+          return -1;
         }
-    }
-    if (mpiRank == 0)
-    {
-        cout << "------------------------------------------------------------"
+        break;
+      case 'i':
+        iters = (unsigned long)atol(optarg);
+        break;
+      default:
+        cerr << "Usage: " << argv[0]
+             << " -m <message size (kb)> -w <wait time (ms)> -s <communication "
+                "sparsity (0<=s<=1)> -c <mode: d|r>"
              << endl;
-        cout << "Using: \n\tMessage Size (kb): " << msgSize
-             << ". Wait time (ms): " << waitTime
-             << "\n\tNumber of Processes: " << numProcs 
-             << "\n\tCommunication Sparsity: " << commSparsity << endl;
-        cout << "------------------------------------------------------------"
-             << endl;
+        return -1;
     }
+  }
+  if (mpiRank == 0)
+  {
+    cout << "------------------------------------------------------------"
+         << endl;
+    cout << "Using: \n\tMessage Size (kb): " << msgSize
+         << ". Wait time (ms): " << waitTime
+         << "\n\tNumber of Processes: " << numProcs
+         << "\n\tCommunication Sparsity: " << commSparsity
+         << "\n\tCommunication Mode: "
+         << (commMode == 'd' ? "Deterministic" : "Random") << endl;
+    cout << "------------------------------------------------------------"
+         << endl;
+  }
 
-    for (int i = 0; i < numProcs; i++)
-    {
-        double* sb = new double[msgSize * 1000];
-        double* rb = new double[msgSize * 1000];
-        sendBuffers.push_back(sb);
-        recvBuffers.push_back(rb);
-        fillArray(sendBuffers.at(i), msgSize * 1000);
-    }
+  // Generate deterministic targets if in deterministic mode
+  if (commMode == 'd')
+  {
+    generateDeterministicTargets();
+  }
 
-    sendReqs = new MPI_Request[numProcs];
-    recvReqs = new MPI_Request[numProcs];
-    
-    inhib();
+  for (int i = 0; i < numProcs; i++)
+  {
+    double* sb = new double[msgSize * 1000];
+    double* rb = new double[msgSize * 1000];
+    sendBuffers.push_back(sb);
+    recvBuffers.push_back(rb);
+    fillArray(sendBuffers.at(i), msgSize * 1000);
+  }
 
-    for (auto pointer : sendBuffers)
-    {
-        delete pointer;
-    }
-    for (auto pointer : recvBuffers)
-    {
-        delete pointer;
-    }
-    delete sendReqs;
-    delete recvReqs;
-    MPI_Finalize();
-    return 0;
+  sendReqs = new MPI_Request[numProcs];
+  recvReqs = new MPI_Request[numProcs];
+
+  inhib();
+
+  for (auto pointer : sendBuffers)
+  {
+    delete pointer;
+  }
+  for (auto pointer : recvBuffers)
+  {
+    delete pointer;
+  }
+  delete sendReqs;
+  delete recvReqs;
+  MPI_Finalize();
+  return 0;
 }
