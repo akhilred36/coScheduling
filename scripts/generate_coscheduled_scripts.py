@@ -129,12 +129,16 @@ def generate_slurm_content(num_nodes, app_a, app_b, run_id, apps_dict, data_dir)
     # MPIP profile directory
     mpip_profile_dir = os.path.join(data_dir, "mpip_profiles")
 
+    # Output log files for each app
+    output_log_a = os.path.join(data_dir, f"output_{app_a}.log")
+    output_log_b = os.path.join(data_dir, f"output_{app_b}.log")
+
     # Run app a
-    srun_a = f'time srun --exclusive -n {tasks_per_app} --mem {mem_per_app} --distribution=block:block --cpu-bind=cores env LD_PRELOAD="{mpip_path}" MPIP="-f {mpip_profile_dir}" {exec_a} {args_a} &'
+    srun_a = f'time srun --exclusive -n {tasks_per_app} --mem {mem_per_app} --distribution=block:block --cpu-bind=cores env LD_PRELOAD="{mpip_path}" MPIP="-f {mpip_profile_dir}" {exec_a} {args_a} > {output_log_a} 2>&1 &'
     script_lines.append(srun_a)
 
     # Run app b
-    srun_b = f'time srun --exclusive -n {tasks_per_app} --mem {mem_per_app} --distribution=block:block --cpu-bind=cores env LD_PRELOAD="{mpip_path}" MPIP="-f {mpip_profile_dir}" {exec_b} {args_b} &'
+    srun_b = f'time srun --exclusive -n {tasks_per_app} --mem {mem_per_app} --distribution=block:block --cpu-bind=cores env LD_PRELOAD="{mpip_path}" MPIP="-f {mpip_profile_dir}" {exec_b} {args_b} > {output_log_b} 2>&1 &'
     script_lines.append(srun_b)
 
     # Wait for both to complete
