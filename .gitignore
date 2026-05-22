@@ -11,3 +11,4 @@ apps/miniVite/miniVite
 # Data
 data/*
 apps/tric/*.bin
+sample_data/*
