@@ -1,52 +1,54 @@
-"apps": {
-    "beatnik": {
-        "path": "apps/beatnik/build/examples/",
-        "exec": "rocketrig",
-        "args": {
-            "-F": 0,
-            "-n": 2400,
-            "-w": 56,
-            "-t": 10
-        }
-    },
-    "minife": {
-        "path": "apps/miniFE/kokkos/src/",
-        "exec": "miniFE.x",
-        "args": {
-            "--nx": 600,
-            "--ny": 600,
-            "--nz": 600,
-            "--iters": 800
-        }
-    },
-    "tricount": {
-        "path": "apps/tric/",
-        "exec": "tric",
-        "args": {
-            "-f": "/p/lustre2/alasandagutt1/tric_graphs/9000000_270000000.bin",
-            "-i": "70"
-        }
-    },
-    "minivite": {
-        "path": "apps/miniVite/",
-        "exec": "miniVite",
-        "args": {
-            "-f": "/p/lustre2/alasandagutt1/tric_graphs/9000000_270000000.bin",
-            "-i": "60"
-        }
-    },
-    "lammps": {
-        "path": "apps/lammps/build/src/",
-        "exec": "lmp",
-        "args": {
-            "-in": "../../examinimd/input/in_420_0.9_100.lj"
-        }
-    },
-    "fiesta": {
-        "path": "apps/fiesta/build/",
-        "exec": "fiesta",
-        "args": {
-            "": "../input/fiesta_56_500_100ts.lua"
-        }
-    }
+{
+    "apps": {
+      "beatnik": {
+          "path": "apps/beatnik/build/examples/",
+          "exec": "rocketrig",
+          "args": {
+              "-F": 0,
+              "-n": 2400,
+              "-w": 56,
+              "-t": 10
+          }
+      },
+      "minife": {
+          "path": "apps/miniFE/kokkos/src/",
+          "exec": "miniFE.x",
+          "args": {
+              "--nx": 600,
+              "--ny": 600,
+              "--nz": 600,
+              "--iters": 800
+          }
+      },
+      "tricount": {
+          "path": "apps/tric/",
+          "exec": "tric",
+          "args": {
+              "-f": "/p/lustre2/alasandagutt1/tric_graphs/9000000_270000000.bin",
+              "-i": "70"
+          }
+      },
+      "minivite": {
+          "path": "apps/miniVite/",
+          "exec": "miniVite",
+          "args": {
+              "-f": "/p/lustre2/alasandagutt1/tric_graphs/9000000_270000000.bin",
+              "-i": "60"
+          }
+      },
+      "lammps": {
+          "path": "apps/lammps/build/src/",
+          "exec": "lmp",
+          "args": {
+              "-in": "/g/g90/alasandagutt1/repos/coScheduling/apps/examinimd/input/in_420_0.9_100.lj"
+          }
+      },
+      "fiesta": {
+          "path": "apps/fiesta/build/",
+          "exec": "fiesta",
+          "args": {
+              "": "/g/g90/alasandagutt1/repos/coScheduling/apps/fiesta/input/fiesta_56_500_100ts.lua"
+          }
+      }
+  }
 }
