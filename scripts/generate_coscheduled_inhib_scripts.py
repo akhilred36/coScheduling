@@ -11,7 +11,8 @@ from datetime import datetime
 
 
 # Constants
-EXPERIMENTS_DIR = "/p/lustre2/alasandagutt1/experiments_coscheduling_inhib_coscheduled"
+WORKSPACE_PATH = "/g/g90/alasandagutt1/repos/coScheduling/"
+EXPERIMENTS_DIR = "/p/lustre2/alasandagutt1/experiments_coscheduling_inhib_coscheduled/"
 NUM_NODES = 1
 NUM_CPUS = 112
 MEMORY = "240G"
@@ -37,11 +38,12 @@ def load_json_config(filepath):
 def generate_experiment_name(app_name, inhib_args, r):
     """
     Generate experiment name in format:
-    1_<app_name>_inhib_<-m>_<-w>_<-i>_<-c>_<-s>_<r>
+    1_<app_name>_inhib_<m_value>_<w_value>_<i_value>_<c_value>_<s_value>_<r>
+    Only values are used, not argument keys.
     """
     inhib_params = []
     for key, value in inhib_args.items():
-        inhib_params.append(f"{key}{value}")
+        inhib_params.append(str(value))
     
     params_str = "_".join(inhib_params)
     return f"1_{app_name}_inhib_{params_str}_{r}"
@@ -102,6 +104,14 @@ def main():
     inhib_exec = inhib["exec"]
     inhib_args = inhib["args"]
     
+    # Construct full absolute path for inhibitor executable
+    inhib_full_path = f"{WORKSPACE_PATH}{inhib_path}{inhib_exec}"
+    
+    # Store app paths for later use
+    app_paths = {}
+    for app_name, app_info in apps.items():
+        app_paths[app_name] = f"{WORKSPACE_PATH}{app_info['path']}{app_info['exec']}"
+    
     # Create experiments directory if it doesn't exist
     if not os.path.exists(EXPERIMENTS_DIR):
         os.makedirs(EXPERIMENTS_DIR)
@@ -138,7 +148,7 @@ def main():
                 experiment_name = generate_experiment_name(app_name, inhib_args_dict, r)
                 
                 # Build inhibitor arguments string
-                inhib_args_str = " ".join([f"{key}{value}" for key, value in inhib_args_dict.items()])
+                inhib_args_str = " ".join([f"{key} {value}" for key, value in inhib_args_dict.items()])
                 
                 # Build app arguments string
                 app_args_list = []
@@ -162,9 +172,9 @@ def main():
                 slurm_content = generate_slurm_script(
                     experiment_name=experiment_name,
                     data_dir=experiment_data_dir,
-                    inhib_exec=inhib_exec,
+                    inhib_exec=inhib_full_path,
                     inhib_args_str=inhib_args_str,
-                    app_exec=app_info["exec"],
+                    app_exec=app_paths[app_name],
                     app_args_str=app_args_str,
                     mpip_prof_path=mpip_prof_path
                 )
