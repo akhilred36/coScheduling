@@ -2,13 +2,15 @@
 .vscode
 
 # Build
-*build/*
+**/build/*
 *.o
 *.a
 apps/tric/tric
 apps/miniVite/miniVite
+apps/miniFE/kokkos/src/miniFE.x
 
 # Data
 data/*
 apps/tric/*.bin
 sample_data/*
+apps/miniFE/kokkos/src/*.yaml
