@@ -73,7 +73,8 @@ void inhib()
 {
   int count = 0;
   // while (1)
-  for (unsigned long i = 0; i < iters; i++)
+  for (unsigned long i = 0; iters == -1 || i < iters;
+       i++)  // Infinite loop for iters==-1
   {
     // Generate send targets based on mode
     vector<vector<int>> sendTargets;
@@ -174,7 +175,7 @@ int main(int argc, char** argv)
   msgSize = 1000;  // default 1000 bytes
   commSparsity = 1.0;
   commMode = 'd';  // -d: Deterministic, -r: Random
-  iters = 1000;
+  iters = ITERS;
 
   int flags, opt;
   while ((opt = getopt(argc, argv, "m:w:s:c:i:")) != -1)
@@ -206,7 +207,8 @@ int main(int argc, char** argv)
         cerr << "Usage: " << argv[0]
              << " -m <message size (bytes)> -w <wait time (ms)> -s "
                 "<communication "
-                "sparsity (0<=s<=1)> -c <mode: d|r>"
+                "sparsity (0<=s<=1)> -c <mode: d|r> -i <iterations> (-1 for "
+                "infinite loop)"
              << endl;
         return -1;
     }
