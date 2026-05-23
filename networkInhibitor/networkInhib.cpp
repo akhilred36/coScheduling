@@ -75,9 +75,6 @@ void inhib()
   // while (1)
   for (unsigned long i = 0; i < iters; i++)
   {
-    std::chrono::steady_clock::time_point begin =
-        std::chrono::steady_clock::now();
-
     // Generate send targets based on mode
     vector<vector<int>> sendTargets;
     if (commMode == 'd')
@@ -157,14 +154,7 @@ void inhib()
 
     MPI_Waitall(totalSends, sendReqs, MPI_STATUSES_IGNORE);
     MPI_Waitall(totalSends, recvReqs, MPI_STATUSES_IGNORE);
-    chrono::steady_clock::time_point end = chrono::steady_clock::now();
-    auto duration =
-        chrono::duration_cast<chrono::milliseconds>(end - begin).count();
-    if (duration < waitTime)
-    {
-      auto remainingTime = waitTime - duration;
-      this_thread::sleep_for(chrono::milliseconds(remainingTime));
-    }
+    this_thread::sleep_for(chrono::microseconds(waitTime));
     count++;
     MPI_Barrier(MPI_COMM_WORLD);
   }
@@ -226,7 +216,7 @@ int main(int argc, char** argv)
     cout << "------------------------------------------------------------"
          << endl;
     cout << "Using: \n\tMessage Size (bytes): " << msgSize
-         << ". Wait time (ms): " << waitTime
+         << ". Wait time (us): " << waitTime
          << "\n\tNumber of Processes: " << numProcs
          << "\n\tCommunication Sparsity: " << commSparsity
          << "\n\tCommunication Mode: "
