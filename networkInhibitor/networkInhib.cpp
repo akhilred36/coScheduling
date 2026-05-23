@@ -20,8 +20,8 @@ long msgSize;
 float commSparsity;
 char commMode;
 unsigned long iters;
-vector<double*> sendBuffers;
-vector<double*> recvBuffers;
+vector<char*> sendBuffers;
+vector<char*> recvBuffers;
 MPI_Request* sendReqs;
 MPI_Request* recvReqs;
 vector<vector<int>>
@@ -37,14 +37,11 @@ uint32_t rand_lcg(void)
   return (uint32_t)(seed >> 33);
 }
 
-void fillArray(double* array, int size)
+void fillArray(char* array, int size)
 {
-  double lower_bound = 0;
-  double upper_bound = 1000000;
   for (int i = 0; i < size; i++)
   {
-    array[i] = lower_bound + (rand_lcg() / (double)(1ULL << 31)) *
-                                 (upper_bound - lower_bound);
+    array[i] = static_cast<char>(rand_lcg() % 256);
   }
 }
 
@@ -140,8 +137,8 @@ void inhib()
     {
       for (int dest : sendTargets[j])
       {
-        MPI_Isend(sendBuffers.at(j), msgSize * 1000, MPI_DOUBLE, dest, 0,
-                  MPI_COMM_WORLD, &(sendReqs[reqIdx]));
+        MPI_Isend(sendBuffers.at(j), msgSize, MPI_BYTE, dest, 0, MPI_COMM_WORLD,
+                  &(sendReqs[reqIdx]));
         reqIdx++;
       }
     }
@@ -152,8 +149,8 @@ void inhib()
     {
       for (int src : sendTargets[j])
       {
-        MPI_Irecv(recvBuffers.at(j), msgSize * 1000, MPI_DOUBLE, src, 0,
-                  MPI_COMM_WORLD, &(recvReqs[reqIdx]));
+        MPI_Irecv(recvBuffers.at(j), msgSize, MPI_BYTE, src, 0, MPI_COMM_WORLD,
+                  &(recvReqs[reqIdx]));
         reqIdx++;
       }
     }
@@ -179,11 +176,12 @@ int main(int argc, char** argv)
   MPI_Comm_rank(MPI_COMM_WORLD, &mpiRank);
   MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
 
-  long waitTime, msgSize;
+  long waitTime;
+  unsigned long msgSize;  // message size in bytes
   float commSparsity;
   char commMode;
   waitTime = 100;
-  msgSize = 1000;
+  msgSize = 1000;  // default 1000 bytes
   commSparsity = 1.0;
   commMode = 'd';  // -d: Deterministic, -r: Random
   iters = 1000;
@@ -216,7 +214,8 @@ int main(int argc, char** argv)
         break;
       default:
         cerr << "Usage: " << argv[0]
-             << " -m <message size (kb)> -w <wait time (ms)> -s <communication "
+             << " -m <message size (bytes)> -w <wait time (ms)> -s "
+                "<communication "
                 "sparsity (0<=s<=1)> -c <mode: d|r>"
              << endl;
         return -1;
@@ -226,7 +225,7 @@ int main(int argc, char** argv)
   {
     cout << "------------------------------------------------------------"
          << endl;
-    cout << "Using: \n\tMessage Size (kb): " << msgSize
+    cout << "Using: \n\tMessage Size (bytes): " << msgSize
          << ". Wait time (ms): " << waitTime
          << "\n\tNumber of Processes: " << numProcs
          << "\n\tCommunication Sparsity: " << commSparsity
@@ -244,11 +243,11 @@ int main(int argc, char** argv)
 
   for (int i = 0; i < numProcs; i++)
   {
-    double* sb = new double[msgSize * 1000];
-    double* rb = new double[msgSize * 1000];
+    char* sb = new char[msgSize];
+    char* rb = new char[msgSize];
     sendBuffers.push_back(sb);
     recvBuffers.push_back(rb);
-    fillArray(sendBuffers.at(i), msgSize * 1000);
+    fillArray(sendBuffers.at(i), msgSize);
   }
 
   sendReqs = new MPI_Request[numProcs];
