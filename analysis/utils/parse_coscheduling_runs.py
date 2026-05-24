@@ -269,3 +269,103 @@ class CoSchedulingRunsParser:
         df = pd.DataFrame(self._runs)
         
         return df
+    
+    def parse_inhibitor_coscheduled(self, directory: Union[str, Path]) -> pd.DataFrame:
+        """
+        Parse an inhibitor coscheduled experiment directory and extract metrics.
+        
+        The directory structure is expected to be:
+        <directory>/
+            <numNodes>_<app>_inhib_<Inhib Message Size>_<Inhib Wait Time (us)>_-1_<Inhib Comm Mode>_<Inhib Comm Sparsity>_<runIteration>/
+                mpip_profiles/
+                    <filename>.mpiP
+            ...
+        
+        Args:
+            directory: Path to the experiment data directory.
+            
+        Returns:
+            pandas DataFrame with columns:
+            - "App": Application name
+            - "Num Nodes": Number of nodes used
+            - "Inhib Message Size": Inhibitor message size
+            - "Inhib Wait Time (us)": Inhibitor wait time in microseconds
+            - "Inhib Comm Sparsity": Inhibitor communication sparsity
+            - "Inhib Comm Mode": Inhibitor communication mode
+            - "Run Iteration": Run iteration number
+            - "App Time Average": Average AppTime across all tasks (seconds)
+            - "MPI Time Average": Average MPITime across all tasks (seconds)
+            - "Total Messages Sent": Sum of all messages sent
+        """
+        directory = Path(directory)
+        self.base_path = directory
+        self._runs = []
+        
+        # Iterate over all subdirectories matching the pattern
+        # <numNodes>_<app>_inhib_<Inhib Message Size>_<Inhib Wait Time (us)>_-1_<Inhib Comm Mode>_<Inhib Comm Sparsity>_<runIteration>
+        for subdir in directory.iterdir():
+            if not subdir.is_dir():
+                continue
+            
+            # Parse the directory name
+            # Format: <numNodes>_<app>_inhib_<Inhib Message Size>_<Inhib Wait Time (us)>_-1_<Inhib Comm Mode>_<Inhib Comm Sparsity>_<runIteration>
+            # Note: Inhib Comm Sparsity can be a float (e.g., 0.2), so we use \d+\.?\d* to match it
+            match = re.match(
+                r'^(\d+)_(.+)_inhib_(\d+)_(\d+)_-1_(\w+)_(\d+\.?\d*)_(\d+)$',
+                subdir.name
+            )
+            if not match:
+                continue
+            
+            num_nodes = int(match.group(1))
+            app = match.group(2)
+            inhib_message_size = int(match.group(3))
+            inhib_wait_time_us = int(match.group(4))
+            inhib_comm_mode = match.group(5)
+            inhib_comm_sparsity = float(match.group(6))
+            run_iteration = int(match.group(7))
+            
+            # Find the .mpiP file in mpip_profiles subdirectory
+            mpip_profiles_dir = subdir / "mpip_profiles"
+            if not mpip_profiles_dir.exists():
+                continue
+            
+            mpiP_files = list(mpip_profiles_dir.glob("*.mpiP"))
+            if not mpiP_files:
+                continue
+            
+            # Parse the first .mpiP file found
+            mpiP_file = mpiP_files[0]
+            parser = MPIPParser(mpiP_file)
+            
+            # Extract metrics from MPI Time section
+            if parser.mpi_time_df is not None:
+                app_time_avg = parser.mpi_time_df['app_time'].mean()
+                mpi_time_avg = parser.mpi_time_df['mpi_time'].mean()
+            else:
+                app_time_avg = 0.0
+                mpi_time_avg = 0.0
+            
+            # Extract total messages sent from aggregate sent statistics
+            total_messages_sent = 0
+            if parser.aggregate_sent_df is not None:
+                total_messages_sent = parser.aggregate_sent_df['count'].sum()
+            
+            # Store metrics with inhibitor info
+            self._runs.append({
+                "App": app,
+                "Num Nodes": num_nodes,
+                "Inhib Message Size": inhib_message_size,
+                "Inhib Wait Time (us)": inhib_wait_time_us,
+                "Inhib Comm Sparsity": inhib_comm_sparsity,
+                "Inhib Comm Mode": inhib_comm_mode,
+                "Run Iteration": run_iteration,
+                "App Time Average": app_time_avg,
+                "MPI Time Average": mpi_time_avg,
+                "Total Messages Sent": total_messages_sent
+            })
+        
+        # Convert to DataFrame
+        df = pd.DataFrame(self._runs)
+        
+        return df
