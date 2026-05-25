@@ -47,10 +47,8 @@ def get_app_combinations(apps_dict, redundant_runs):
     # Use combinations_with_replacement to get all unique pairs
     # This ensures we don't have duplicates like (a, b) and (b, a)
     for a, b in combinations_with_replacement(app_names, 2):
-        # Skip when a == b (same app paired with itself)
-        if a != b:
-            for i in range(redundant_runs):
-                pairs.append((a, b, i))
+        for i in range(redundant_runs):
+            pairs.append((a, b, i))
 
     return pairs
 
