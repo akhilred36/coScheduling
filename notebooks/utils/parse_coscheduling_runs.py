@@ -190,7 +190,7 @@ class CoSchedulingRunsParser:
         self._runs = []
         
         # Load the run config to map exec names to app names
-        run_config_path = Path("/home/akhil/hpcResearch/repos/coScheduling/run_configs/1_nodes.json")
+        run_config_path = Path("../run_configs/1_nodes.json")
         if not run_config_path.exists():
             raise FileNotFoundError(f"Run config file not found: {run_config_path}")
         
@@ -297,8 +297,12 @@ class CoSchedulingRunsParser:
                 )
                 
                 # Assign to App A or App B based on app name
+                # Special handling for when both apps are the same (e.g., fiesta_fiesta)
                 if app_name == app_a_name:
-                    app_a_metrics = metrics
+                    if app_a_metrics is None:
+                        app_a_metrics = metrics
+                    elif app_b_metrics is None:
+                        app_b_metrics = metrics
                 elif app_name == app_b_name:
                     app_b_metrics = metrics
             
