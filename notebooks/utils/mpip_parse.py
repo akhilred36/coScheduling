@@ -222,6 +222,8 @@ class MPIPParser:
                 parts = line.split()
                 if len(parts) >= 4:
                     task_id = parts[0]
+                    if task_id == '*':      # Skip the aggregate total row
+                        continue
                     row = {
                         'task_id': int(task_id) if task_id != '*' else -1,
                         'app_time': float(parts[1]),
@@ -354,6 +356,8 @@ class MPIPParser:
                     site_id = int(parts[1])
                     # Handle rank which can be '*' for aggregate
                     rank_str = parts[2]
+                    if rank_str == '*':      # Skip the aggregate total row
+                        continue
                     rank = int(rank_str) if rank_str != '*' else -1
                     
                     row = {
@@ -398,6 +402,8 @@ class MPIPParser:
                     site_id = int(parts[1])
                     # Handle rank which can be '*' for aggregate
                     rank_str = parts[2]
+                    if rank_str == '*':      # Skip the aggregate total row
+                        continue
                     rank = int(rank_str) if rank_str != '*' else -1
                     
                     row = {
@@ -441,6 +447,8 @@ class MPIPParser:
                     site_id = int(parts[1])
                     # Handle rank which can be '*' for aggregate
                     rank_str = parts[2]
+                    if rank_str == '*':      # Skip the aggregate total row
+                        continue
                     rank = int(rank_str) if rank_str != '*' else -1
                     
                     row = {
