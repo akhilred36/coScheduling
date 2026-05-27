@@ -13,7 +13,7 @@ from datetime import datetime
 # =============================================================================
 node_choices = [1]
 redundant_runs = 4
-walltime = "00:30:00"
+walltime = "00:15:00"
 email = "aalasand1@unm.edu"
 num_cpus = 56
 mem = "120G"
@@ -82,13 +82,13 @@ for num_nodes in node_choices:
 
             # Step 4.3.3: Write SLURM header
             slurm_content = f"""#!/bin/bash
-#SBATCH --job-name {num_nodes}_{app_name}_{i}_isolated
+#SBATCH --job-name {num_nodes}_{app_name}_{i}
 #SBATCH --mail-user {email}
 #SBATCH --mail-type FAIL,TIME_LIMIT
-#SBATCH --output {num_nodes}_{app_name}_{i}_isolated.out
-#SBATCH --error {num_nodes}_{app_name}_{i}_isolated.err
-#SBATCH --ntasks {num_cpus}
-#SBATCH --ntasks-per-node {num_cpus}
+#SBATCH --output {num_nodes}_{app_name}_{i}.out
+#SBATCH --error {num_nodes}_{app_name}_{i}.err
+#SBATCH --ntasks {num_cpus}*2
+#SBATCH --ntasks-per-node {num_cpus}*2
 #SBATCH --nodes {num_nodes}
 #SBATCH --mem {mem}
 #SBATCH --time {walltime}
@@ -125,7 +125,7 @@ for num_nodes in node_choices:
             exec_full_path = os.path.join(base_repo_path, app_info.get("path", ""), exec_path)
             output_log = os.path.join(data_subdir, "output.log")
 
-            srun_command = f"time srun -n {num_cpus} --distribution=block:block --cpu-bind=cores env LD_PRELOAD=\"{mpip_path}\" MPIP=\"-f {mpip_profiles_dir}\" {exec_full_path}{args_str} > {output_log} 2>&1"
+            srun_command = f"time srun -n {num_cpus} --distribution=block:block --cpu-bind=cores --mpibind=on,v env LD_PRELOAD=\"{mpip_path}\" MPIP=\"-f {mpip_profiles_dir}\" {exec_full_path}{args_str} > {output_log} 2>&1"
             slurm_content += srun_command + "\n"
 
             # Write the SLURM file
