@@ -87,8 +87,8 @@ for num_nodes in node_choices:
 #SBATCH --mail-type FAIL,TIME_LIMIT
 #SBATCH --output {num_nodes}_{app_name}_{i}.out
 #SBATCH --error {num_nodes}_{app_name}_{i}.err
-#SBATCH --ntasks {num_cpus}*2
-#SBATCH --ntasks-per-node {num_cpus}*2
+#SBATCH --ntasks {num_cpus*2}
+#SBATCH --ntasks-per-node {num_cpus*2}
 #SBATCH --nodes {num_nodes}
 #SBATCH --mem {mem}
 #SBATCH --time {walltime}
