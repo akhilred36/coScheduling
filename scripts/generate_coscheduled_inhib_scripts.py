@@ -74,10 +74,10 @@ source {SPACK_SETUP_ENV} && spack env activate {SPACK_ENV_PATH}
 mkdir -p {mpip_prof_path}
 
 # Run network inhibitor in background (runs forever until killed)
-srun -n 56 --mem 119G --distribution=block:block --cpu-bind=cores {inhib_exec} --mpibind=on,v {inhib_args_str} > {data_dir}/inhib_output.log 2>&1 &
+srun --exclusive -n 56 --mem 119G --distribution=block:block --cpu-bind=cores {inhib_exec} --mpibind=on,v {inhib_args_str} > {data_dir}/inhib_output.log 2>&1 &
 
 # Run the application with MPIP profiling in foreground
-time srun -n 56 --mem 119G --distribution=block:block --cpu-bind=cores --mpibind=on,v env LD_PRELOAD="{NETWORK_INHIBITOR_EXEC}" MPIP="{MPIP_FLAGS} {mpip_prof_path}" {app_exec} {app_args_str} > {data_dir}/app_output.log 2>&1
+time srun --exclusive -n 56 --mem 119G --distribution=block:block --cpu-bind=cores --mpibind=on,v env LD_PRELOAD="{NETWORK_INHIBITOR_EXEC}" MPIP="{MPIP_FLAGS} {mpip_prof_path}" {app_exec} {app_args_str} > {data_dir}/app_output.log 2>&1
 
 # Cancel the job to kill the background inhibitor process
 scancel $SLURM_JOB_ID
