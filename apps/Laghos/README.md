@@ -1,0 +1,302 @@
+               __                __
+              / /   ____  ____  / /_  ____  _____
+             / /   / __ `/ __ `/ __ \/ __ \/ ___/
+            / /___/ /_/ / /_/ / / / / /_/ (__  )
+           /_____/\__,_/\__, /_/ /_/\____/____/
+                       /____/
+
+        High-order Lagrangian Hydrodynamics Miniapp
+
+[![Build Status](https://travis-ci.org/CEED/Laghos.svg?branch=master)](https://travis-ci.org/CEED/Laghos)
+[![Build and Test (GH Actions)](https://github.com/CEED/Laghos/workflows/build-and-test-laghos/badge.svg?branch=master)](https://github.com/CEED/Laghos/actions?query=workflow%3Abuild-and-test-laghos)
+
+## Purpose
+
+**Laghos** (LAGrangian High-Order Solver) is a miniapp that solves the
+time-dependent Euler equations of compressible gas dynamics in a moving
+Lagrangian frame using unstructured high-order finite element spatial
+discretization and explicit high-order time-stepping.
+
+Laghos is based on the discretization method described in the following article:
+
+> V. Dobrev, Tz. Kolev and R. Rieben <br>
+> [High-order curvilinear finite element methods for Lagrangian hydrodynamics](https://doi.org/10.1137/120864672) <br>
+> *SIAM Journal on Scientific Computing*, (34) 2012, pp. B606–B641.
+
+Laghos captures the basic structure of many compressible shock hydrocodes,
+including the [BLAST code](http://llnl.gov/casc/blast) at [Lawrence Livermore
+National Laboratory](http://llnl.gov). The miniapp is built on top of a general
+discretization library, [MFEM](http://mfem.org), thus separating the pointwise
+physics from finite element and meshing concerns.
+
+The Laghos miniapp is part of the [CEED software suite](http://ceed.exascaleproject.org/software),
+a collection of software benchmarks, miniapps, libraries and APIs for
+efficient exascale discretizations based on high-order finite element
+and spectral element methods. See http://github.com/ceed for more
+information and source code availability.
+
+The CEED research is supported by the [Exascale Computing Project](https://exascaleproject.org/exascale-computing-project)
+(17-SC-20-SC), a collaborative effort of two U.S. Department of Energy
+organizations (Office of Science and the National Nuclear Security
+Administration) responsible for the planning and preparation of a
+[capable exascale ecosystem](https://exascaleproject.org/what-is-exascale),
+including software, applications, hardware, advanced system engineering and early
+testbed platforms, in support of the nation’s exascale computing imperative.
+
+## Characteristics
+
+The problem that Laghos is solving is formulated as a big (block) system of
+ordinary differential equations (ODEs) for the unknown (high-order) velocity,
+internal energy and mesh nodes (position). The left-hand side of this system of
+ODEs is controlled by *mass matrices* (one for velocity and one for energy),
+while the right-hand side is constructed from a *force matrix*.
+
+Laghos supports two options for deriving and solving the ODE system, namely the
+*full assembly* and the *partial assembly* methods. Partial assembly is the main
+algorithm of interest for high orders. For low orders (e.g. 2nd order in 3D),
+both algorithms are of interest.
+
+The full assembly option relies on constructing and utilizing global mass and
+force matrices stored in compressed sparse row (CSR) format.  In contrast, the
+[partial assembly](http://ceed.exascaleproject.org/ceed-code) option defines
+only the local action of those matrices, which is then used to perform all
+necessary operations. As the local action is defined by utilizing the tensor
+structure of the finite element spaces, the amount of data storage, memory
+transfers, and FLOPs are lower (especially for higher orders).
+
+The Laghos implementation includes support for hardware devices, such
+as GPUs, and programming models, such as CUDA, OCCA, RAJA and OpenMP,
+based on [MFEM](http://mfem.org), version 4.1 or later. These device
+backends are selectable at runtime, see the `-d/--device` command-line
+option.
+
+Other computational motives in Laghos include the following:
+
+- Support for unstructured meshes, in 2D and 3D, with quadrilateral and
+  hexahedral elements (triangular and tetrahedral elements can also be used, but
+  with the less efficient full assembly option). Serial and parallel mesh
+  refinement options can be set via a command-line flag.
+- Explicit time-stepping loop with a variety of time integrator options. Laghos
+  supports Runge-Kutta ODE solvers of orders 1, 2, 3, 4 and 6, as well as a
+  specialized Runge-Kutta method of order 2 that ensures exact energy
+  conservation on fully discrete level (RK2Avg).
+- Continuous and discontinuous high-order finite element discretization spaces
+  of runtime-specified order.
+- Moving (high-order) meshes.
+- Separation between the assembly and the quadrature point-based computations.
+- Point-wise definition of mesh size, time-step estimate and artificial
+  viscosity coefficient.
+- Constant-in-time velocity mass operator that is inverted iteratively on
+  each time step. This is an example of an operator that is prepared once (fully
+  or partially assembled), but is applied many times. The application cost is
+  dominant for this operator.
+- Time-dependent force matrix that is prepared every time step (fully or
+  partially assembled) and is applied just twice per "assembly". Both the
+  preparation and the application costs are important for this operator.
+- Domain-decomposed MPI parallelism.
+- Optional in-situ visualization with [GLVis](http:/glvis.org) and data output
+  for visualization and data analysis with [VisIt](http://visit.llnl.gov).
+- Optional performance analysis with [Caliper](http://github.com/LLNL/caliper).
+
+## Code Structure
+
+- The file `laghos.cpp` contains the main driver with the time integration loop
+  starting around line 609.
+- In each time step, the ODE system of interest is constructed and solved by
+  the class `LagrangianHydroOperator`, defined around line 544 of `laghos.cpp`
+  and implemented in files `laghos_solver.hpp` and `laghos_solver.cpp`.
+- All quadrature-based computations are performed in the function
+  `LagrangianHydroOperator::UpdateQuadratureData` in `laghos_solver.cpp`.
+- Depending on the chosen option (`-pa` for partial assembly or `-fa` for full
+  assembly), the function `LagrangianHydroOperator::Mult` uses the corresponding
+  method to construct and solve the final ODE system.
+- The full assembly computations for all mass matrices are performed by the MFEM
+  library, e.g., classes `MassIntegrator` and `VectorMassIntegrator`.  Full
+  assembly of the ODE's right hand side is performed by utilizing the class
+  `ForceIntegrator` defined in `laghos_assembly.hpp`.
+- The partial assembly computations are performed by the classes
+  `ForcePAOperator` and `MassPAOperator` defined in `laghos_assembly.hpp`.
+- When partial assembly is used, the main computational kernels are the
+  `Mult*` functions of the classes `MassPAOperator` and `ForcePAOperator`
+  implemented in file `laghos_assembly.cpp`. These functions have specific
+  versions for quadrilateral and hexahedral elements.
+- The orders of the velocity and position (continuous kinematic space)
+  and the internal energy (discontinuous thermodynamic space) are given
+  by the `-ok` and `-ot` input parameters, respectively.
+
+## Building
+
+Laghos has the following external dependencies:
+
+- *hypre*, used for parallel linear algebra, we recommend version 2.31.0 or new<br>
+  https://github.com/hypre-space/hypre/releases/tag/v2.31.0
+
+- METIS, used for parallel domain decomposition (optional)
+  https://github.com/KarypisLab/METIS.git
+
+- MFEM, used for (high-order) finite element discretization, its GitHub master branch <br>
+  https://github.com/mfem/mfem
+
+- Umpire, used for device memory pools in hypre and MFEM. This is only recommended for GPU-accelerated builds. (optional)<br>
+  https://github.com/LLNL/Umpire.git
+
+- CMake 3.24.0+ or GNU Make
+- C and C++17 compiler
+- MPI
+
+### Makefile
+
+See INSTALL_makefile.md
+
+### CMake
+
+See INSTALL_cmake.md
+
+## Running
+
+#### Sedov blast
+
+The main problem of interest for Laghos is the Sedov blast wave (`-p 1`) with
+partial assembly option (`-pa`).
+
+Some sample runs in 2D and 3D respectively are:
+```sh
+mpirun -np 8 ./laghos -p 1 -m data/square01_quad.mesh -dim 2 -rs 3 -tf 0.8 -pa
+mpirun -np 8 ./laghos -p 1 -m data/cube01_hex.mesh -dim 3 -E0 2 -rs 2 -tf 0.6 -pa -vis
+```
+
+The latter produces the following density plot (notice the `-vis` option)
+
+[![Sedov blast image](data/sedov.png)](https://glvis.org/live/?stream=../data/laghos.saved)
+
+To compare against the analytical soluton the `-err` option can be used to compute $\int_{\Omega} \|\rho_{sim} - \rho_{exact}\|_2 dV$ of the final solution.
+
+#### Taylor-Green and Gresho vortices
+
+Laghos includes also smooth test problems that expose all the principal
+computational kernels of the problem except for the artificial viscosity
+evaluation. (Viscosity can still be activated for these problems with the
+`--impose-viscosity` option.)
+
+Some sample runs in 2D and 3D respectively are:
+```sh
+mpirun -np 8 ./laghos -p 0 -m data/square01_quad.mesh -rs 3 -tf 0.5 -pa
+mpirun -np 8 ./laghos -p 0 -m data/cube01_hex.mesh -rs 1 -tf 0.25 -pa
+mpirun -np 8 ./laghos -p 4 -m data/square_gresho.mesh -rs 3 -ok 3 -ot 2 -tf 0.62 -s 7 -vis -pa
+```
+
+The latter produce the following velocity magnitude plots (notice the `-vis` option)
+
+<table border="0">
+<td> <img src="data/tg.png">
+<td> <img src="data/gresho.png">
+</table>
+
+#### Triple-point problem
+
+This is a well known three-material problem that combines shock waves and
+vorticity, thus examining the complex computational abilities of Laghos.
+
+Some sample runs in 2D and 3D respectively are:
+```sh
+mpirun -np 8 ./laghos -p 3 -m data/rectangle01_quad.mesh -rs 2 -tf 5.0 -pa
+mpirun -np 8 ./laghos -p 3 -m data/box01_hex.mesh -rs 2 -tf 5.0 -vis -pa
+```
+
+The latter produces the following specific internal energy plot (notice the `-vis` option)
+
+<img src="data/tp.png" width="500" height="500">
+
+## Verification of Results
+
+To make sure the results are correct, we tabulate reference final iterations
+(`step`), time steps (`dt`) and energies (`|e|`) for the runs listed below:
+
+1. `mpirun -np 8 ./laghos -p 0 -m data/square01_quad.mesh -rs 3 -tf 0.75 -pa`
+2. `mpirun -np 8 ./laghos -p 0 -m data/cube01_hex.mesh -rs 1 -tf 0.75 -pa`
+3. `mpirun -np 8 ./laghos -p 1 -m data/square01_quad.mesh -rs 3 -tf 0.8 -pa`
+4. `mpirun -np 8 ./laghos -p 1 -m data/cube01_hex.mesh -E0 2 -rs 2 -tf 0.6 -pa`
+5. `mpirun -np 8 ./laghos -p 2 -m data/segment01.mesh -rs 5 -tf 0.2 -fa`
+6. `mpirun -np 8 ./laghos -p 3 -m data/rectangle01_quad.mesh -rs 2 -tf 3.0 -pa`
+7. `mpirun -np 8 ./laghos -p 3 -m data/box01_hex.mesh -rs 1 -tf 5.0 -pa`
+8. `mpirun -np 8 ./laghos -p 4 -m data/square_gresho.mesh -rs 3 -ok 3 -ot 2 -tf 0.62831853 -s 7 -pa`
+9. `mpirun -np 8 ./laghos -p 7 -m data/rt2D.mesh -tf 4 -rs 1 -ok 4 -ot 3 -pa`
+
+| `run` | `step` | `dt` | `e` |
+| ----- | ------ | ---- | --- |
+|  1. |  339 | 0.000702 | 4.9695537349e+01 |
+|  2. | 1041 | 0.000121 | 3.3909635545e+03 |
+|  3. | 1154 | 0.001655 | 4.6303396053e+01 |
+|  4. |  560 | 0.002449 | 1.3408616722e+02 |
+|  5. |  413 | 0.000470 | 3.2012077410e+01 |
+|  6. | 2872 | 0.000064 | 5.6547039096e+01 |
+|  7. |  858 | 0.000474 | 5.6691500623e+01 |
+|  8. |  776 | 0.000045 | 4.0982431726e+02 |
+|  9. | 2462 | 0.000050 | 1.1792848680e+02 |
+
+Similar GPU runs using the MFEM GPU *device* can be run as follows:
+
+1. `./laghos -p 0 -m data/square01_quad.mesh -rs 3 -tf 0.75 -pa -d gpu`
+2. `./laghos -p 0 -m data/cube01_hex.mesh -rs 1 -tf 0.75 -pa -d gpu`
+3. `./laghos -p 1 -m data/square01_quad.mesh -rs 3 -tf 0.80 -pa -d gpu`
+4. `./laghos -p 1 -m data/cube01_hex.mesh -E0 2 -rs 2 -tf 0.60 -pa -d gpu`
+5. -- this is a 1D test that is not supported on the device --
+6. `./laghos -p 3 -m data/rectangle01_quad.mesh -rs 2 -tf 3.0 -pa -d gpu`
+7. `./laghos -p 3 -m data/box01_hex.mesh -rs 1 -tf 5.0 -pa -cgt 1e-12 -d gpu`
+8. `./laghos -p 4 -m data/square_gresho.mesh -rs 3 -ok 3 -ot 2 -tf 0.62831853 -s 7 -pa -d gpu`
+9. `./laghos -p 7 -m data/rt2D.mesh -tf 4 -rs 1 -ok 4 -ot 3 -pa -d gpu`
+
+An implementation is considered valid if the final energy values are all within
+round-off distance from the above reference values.
+
+## Performance Timing and FOM
+
+Each time step in Laghos contains 3 major distinct computations:
+
+1. The inversion of the global kinematic mass matrix (CG H1).
+2. The force operator evaluation from degrees of freedom to quadrature points (Forces).
+3. The physics kernel in quadrature points (UpdateQuadData).
+
+By default Laghos is instrumented to report the total execution times and rates,
+in terms of millions of degrees of freedom per second (megadofs), for each of
+these computational phases. (The time for inversion of the local thermodynamic
+mass matrices (CG L2) is also reported, but that takes a small part of the
+overall computation.)
+
+Laghos also reports the total rate for these major kernels, which is a proposed
+**Figure of Merit (FOM)** for benchmarking purposes.  Given a computational
+allocation, the FOM should be reported for different problem sizes and finite
+element orders.
+
+For controlled performance scaling, use (-dim) to select the problem dimension
+and (-epm) to set the number of elements per MPI task, instead of providing a
+mesh with (-m). The code then automatically generates and partitions a
+[0, 1]^dim quad/hex mesh. Performance is determined by the device (-d), task
+count (-n), elements per task (-epm), and finite-element orders (-ok and -ot).
+The total problem size is (-n) × (-epm), with higher order increasing the work
+per element. Weak scaling varies (-n) at fixed (-epm), while strong scaling
+keeps (-n) × (-epm) constant.
+
+## Versions
+
+In addition to the main MPI-based CPU implementation in https://github.com/CEED/Laghos,
+the following versions of Laghos have been developed
+
+- **SERIAL** version in the [serial/](./serial/README.md) directory.
+- **AMR** version in the [amr/](./amr/README.md) directory.
+  This version supports dynamic adaptive mesh refinement.
+
+## Contact
+
+You can reach the Laghos team by emailing laghos@llnl.gov or by leaving a
+comment in the [issue tracker](https://github.com/CEED/Laghos/issues).
+
+## Copyright
+
+The following copyright applies to each file in the CEED software suite,
+unless otherwise stated in the file:
+
+> Copyright (c) 2017, Lawrence Livermore National Security, LLC. Produced at the
+> Lawrence Livermore National Laboratory. LLNL-CODE-734707. All Rights reserved.
+
+See files LICENSE and NOTICE for details.

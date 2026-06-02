@@ -1,0 +1,158 @@
+# Copyright (c) 1998 Lawrence Livermore National Security, LLC and other
+# HYPRE Project Developers. See the top-level COPYRIGHT file for details.
+#
+# SPDX-License-Identifier: (Apache-2.0 OR MIT)
+
+set(HDRS
+  HYPRE_seq_mv.h
+  _hypre_seq_mv.h
+)
+
+# Add MUP headers when mixed precision is enabled
+if(HYPRE_ENABLE_MIXED_PRECISION)
+  list(APPEND HDRS
+    HYPRE_seq_mv_mup.h
+    _hypre_seq_mv_mup.h
+    _hypre_seq_mv_mup_def.h
+    _hypre_seq_mv_mup_undef.h
+  )
+endif()
+
+# Regular sources
+set(REGULAR_SRCS
+  csr_filter.c
+  csr_matop.c
+  csr_matrix.c
+  csr_matvec.c
+  genpart.c
+  HYPRE_csr_matrix.c
+  HYPRE_mapped_matrix.c
+  HYPRE_multiblock_matrix.c
+  HYPRE_vector.c
+  mapped_matrix.c
+  multiblock_matrix.c
+  vector.c
+  vector_batched.c
+  csr_matop_device.c
+  csr_matvec_device.c
+  csr_matvec_oomp.c
+  csr_spadd_device.c
+  csr_spgemm_device.c
+  csr_spgemm_device_cusparse.c
+  csr_spgemm_device_numblocks.c
+  csr_spgemm_device_numer.c
+  csr_spgemm_device_numer1.c
+  csr_spgemm_device_numer2.c
+  csr_spgemm_device_numer3.c
+  csr_spgemm_device_numer4.c
+  csr_spgemm_device_numer5.c
+  csr_spgemm_device_numer6.c
+  csr_spgemm_device_numer7.c
+  csr_spgemm_device_numer8.c
+  csr_spgemm_device_numer9.c
+  csr_spgemm_device_numer10.c
+  csr_spgemm_device_onemklsparse.c
+  csr_spgemm_device_rocsparse.c
+  csr_spgemm_device_rowest.c
+  csr_spgemm_device_symbl.c
+  csr_spgemm_device_symbl1.c
+  csr_spgemm_device_symbl2.c
+  csr_spgemm_device_symbl3.c
+  csr_spgemm_device_symbl4.c
+  csr_spgemm_device_symbl5.c
+  csr_spgemm_device_symbl6.c
+  csr_spgemm_device_symbl7.c
+  csr_spgemm_device_symbl8.c
+  csr_spgemm_device_symbl9.c
+  csr_spgemm_device_symbl10.c
+  csr_spgemm_device_util.c
+  csr_spmv_device.c
+  csr_sptrans_device.c
+  vector_device.c
+)
+
+# Mixed precision sources
+set(MUP_SRCS
+  mup_fixed.c
+  mup_functions.c
+  mup_pre.c
+  seq_mv_mp.c
+)
+
+if(HYPRE_USING_GPU)
+  list(APPEND MUP_SRCS
+    mup_fixed_gpu.c
+    mup_functions_gpu.c
+    mup_pre_gpu.c
+  )
+endif()
+
+# Autogenerate csr_spgemm_device_numer$ and csr_spgemm_device_symbl$ files
+set(AUTOGEN_CLEAN_SRCS "")
+foreach(kind IN ITEMS numer symbl)
+  foreach(number RANGE 1 10)
+    set(src_file "csr_spgemm_device_${kind}${number}.c")
+    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/csr_spgemm_device_${kind}.in" file_content)
+    file(WRITE "${CMAKE_CURRENT_SOURCE_DIR}/${src_file}" "#define HYPRE_SPGEMM_BIN ${number}")
+    file(APPEND "${CMAKE_CURRENT_SOURCE_DIR}/${src_file}" "${file_content}")
+    list(APPEND AUTOGEN_CLEAN_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/${src_file}")
+  endforeach()
+endforeach()
+set_directory_properties(PROPERTIES ADDITIONAL_CLEAN_FILES "${AUTOGEN_CLEAN_SRCS}")
+
+if(HYPRE_ENABLE_MIXED_PRECISION)
+  setup_mixed_precision_compilation("seq_mv" SRCS "${REGULAR_SRCS}")
+  target_sources(${PROJECT_NAME} PRIVATE ${MUP_SRCS} ${HDRS})
+else()
+  target_sources(${PROJECT_NAME} PRIVATE ${REGULAR_SRCS} ${HDRS})
+endif()
+
+if (HYPRE_USING_GPU)
+  set(GPU_SRCS
+    csr_matop_device.c
+    csr_matvec_device.c
+    csr_matvec_oomp.c
+    csr_spadd_device.c
+    csr_spgemm_device.c
+    csr_spgemm_device_cusparse.c
+    csr_spgemm_device_numblocks.c
+    csr_spgemm_device_numer.c
+    csr_spgemm_device_numer1.c
+    csr_spgemm_device_numer2.c
+    csr_spgemm_device_numer3.c
+    csr_spgemm_device_numer4.c
+    csr_spgemm_device_numer5.c
+    csr_spgemm_device_numer6.c
+    csr_spgemm_device_numer7.c
+    csr_spgemm_device_numer8.c
+    csr_spgemm_device_numer9.c
+    csr_spgemm_device_numer10.c
+    csr_spgemm_device_onemklsparse.c
+    csr_spgemm_device_rocsparse.c
+    csr_spgemm_device_rowest.c
+    csr_spgemm_device_symbl.c
+    csr_spgemm_device_symbl1.c
+    csr_spgemm_device_symbl2.c
+    csr_spgemm_device_symbl3.c
+    csr_spgemm_device_symbl4.c
+    csr_spgemm_device_symbl5.c
+    csr_spgemm_device_symbl6.c
+    csr_spgemm_device_symbl7.c
+    csr_spgemm_device_symbl8.c
+    csr_spgemm_device_symbl9.c
+    csr_spgemm_device_symbl10.c
+    csr_spgemm_device_util.c
+    csr_spmv_device.c
+    csr_sptrans_device.c
+    mup_fixed_gpu.c
+    mup_functions_gpu.c
+    mup_pre_gpu.c
+    vector_device.c
+  )
+  mark_hypre_gpu_sources(${GPU_SRCS})
+  convert_filenames_to_full_paths(GPU_SRCS)
+  set(HYPRE_GPU_SOURCES ${HYPRE_GPU_SOURCES} ${GPU_SRCS} PARENT_SCOPE)
+endif ()
+
+convert_filenames_to_full_paths(HDRS)
+set(HYPRE_HEADERS ${HYPRE_HEADERS} ${HDRS} PARENT_SCOPE)

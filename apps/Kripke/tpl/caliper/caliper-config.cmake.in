@@ -1,0 +1,28 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+include("${CMAKE_CURRENT_LIST_DIR}/caliper-targets.cmake")
+
+set_and_check(caliper_INCLUDE_DIR "@PACKAGE_caliper_INSTALL_INCLUDE_DIR@")
+
+if (@CALIPER_HAVE_ADIAK@)
+  if (NOT TARGET adiak::adiak)
+    set(CALIPER_ADIAK_DIR @adiak_DIR@)
+    if (NOT adiak_DIR)
+      set(adiak_DIR ${CALIPER_ADIAK_DIR})
+    endif()
+    find_dependency(
+        adiak
+      CONFIG
+        NO_DEFAULT_PATH
+      PATHS
+        ${adiak_DIR}
+        ${adiak_DIR}/lib/cmake/adiak
+        ${PACKAGE_PREFIX_DIR}
+        ${PACKAGE_PREFIX_DIR}/lib/cmake/adiak
+    )
+  endif()
+endif()
+
+check_required_components(caliper)

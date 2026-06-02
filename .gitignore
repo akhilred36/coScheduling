@@ -3,6 +3,8 @@
 
 # Build
 **/build/*
+**/install/*
+apps/hypre/src/hypre
 *.o
 *.a
 apps/tric/tric
