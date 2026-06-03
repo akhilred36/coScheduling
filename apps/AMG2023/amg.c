@@ -82,9 +82,10 @@ main( hypre_int argc,
    HYPRE_Int           ioutdat;
    HYPRE_Int           poutdat;
    HYPRE_Int           debug_flag;
-   HYPRE_Int           num_iterations;
-   HYPRE_Int           max_iter = 1000;
-   HYPRE_Int           mg_max_iter = 100;
+    HYPRE_Int           num_iterations;
+    HYPRE_Int           max_iter = 1000;
+    HYPRE_Int           mg_max_iter = 100;
+    HYPRE_Int           fixed_iterations = 0;
    HYPRE_Real          final_res_norm;
    HYPRE_Real          max_row_sum = 1.0;
    void               *object = NULL;
@@ -305,15 +306,20 @@ main( hypre_int argc,
          arg_index++;
          dev_pool_size = atoi(argv[arg_index++]);
       }
-      else if ( strcmp(argv[arg_index], "-um_pool_size") == 0 )
-      {
-         arg_index++;
-         um_pool_size = atoi(argv[arg_index++]);
-      }
-      else
-      {
-         arg_index++;
-      }
+     else if ( strcmp(argv[arg_index], "-um_pool_size") == 0 )
+       {
+          arg_index++;
+          um_pool_size = atoi(argv[arg_index++]);
+       }
+       else if ( strcmp(argv[arg_index], "-iter") == 0 )
+       {
+          arg_index++;
+          fixed_iterations = atoi(argv[arg_index++]);
+       }
+       else
+       {
+          arg_index++;
+       }
    }
 
    /*-----------------------------------------------------------
@@ -335,12 +341,13 @@ main( hypre_int argc,
       hypre_printf("\n");
       hypre_printf("  -print       : prints the system\n");
       hypre_printf("  -printstats  : prints preconditioning and convergence stats\n");
-      hypre_printf("  -printallstats  : prints preconditioning and convergence stats\n");
-      hypre_printf("                    including residual norms for each iteration\n");
-      hypre_printf("  -dev_pool_size : size of GPU device memory pool (in GB)\n");
-      hypre_printf("  -um_pool_size : size of GPU UVM memory pool (in GB)\n");
-      hypre_printf("\n");
-      exit(1);
+       hypre_printf("  -printallstats  : prints preconditioning and convergence stats\n");
+       hypre_printf("                    including residual norms for each iteration\n");
+       hypre_printf("  -iter <N>    : run for exactly N iterations (ignores tolerance)\n");
+       hypre_printf("  -dev_pool_size : size of GPU device memory pool (in GB)\n");
+       hypre_printf("  -um_pool_size : size of GPU UVM memory pool (in GB)\n");
+       hypre_printf("\n");
+       exit(1);
    }
 
    /*-----------------------------------------------------------
@@ -549,8 +556,16 @@ main( hypre_int argc,
 #endif
       hypre_BeginTiming(time_index);
       HYPRE_ParCSRPCGCreate(comm, &pcg_solver);
-      HYPRE_PCGSetMaxIter(pcg_solver, max_iter);
-      HYPRE_PCGSetTol(pcg_solver, tol);
+      if (fixed_iterations > 0)
+      {
+         HYPRE_PCGSetMaxIter(pcg_solver, fixed_iterations);
+         HYPRE_PCGSetTol(pcg_solver, 1e30);
+      }
+      else
+      {
+         HYPRE_PCGSetMaxIter(pcg_solver, max_iter);
+         HYPRE_PCGSetTol(pcg_solver, tol);
+      }
       HYPRE_PCGSetTwoNorm(pcg_solver, 1);
       HYPRE_PCGSetRelChange(pcg_solver, rel_change);
       HYPRE_PCGSetPrintLevel(pcg_solver, ioutdat);
@@ -690,8 +705,16 @@ main( hypre_int argc,
 
       HYPRE_ParCSRGMRESCreate(comm, &pcg_solver);
       HYPRE_GMRESSetKDim(pcg_solver, k_dim);
-      HYPRE_GMRESSetMaxIter(pcg_solver, max_iter);
-      HYPRE_GMRESSetTol(pcg_solver, tol);
+      if (fixed_iterations > 0)
+      {
+         HYPRE_GMRESSetMaxIter(pcg_solver, fixed_iterations);
+         HYPRE_GMRESSetTol(pcg_solver, 1e30);
+      }
+      else
+      {
+         HYPRE_GMRESSetMaxIter(pcg_solver, max_iter);
+         HYPRE_GMRESSetTol(pcg_solver, tol);
+      }
       HYPRE_GMRESSetAbsoluteTol(pcg_solver, atol);
       HYPRE_GMRESSetLogging(pcg_solver, 1);
       HYPRE_GMRESSetPrintLevel(pcg_solver, ioutdat);
