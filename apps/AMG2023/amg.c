@@ -571,7 +571,7 @@ main( hypre_int argc,
       HYPRE_PCGSetPrintLevel(pcg_solver, ioutdat);
       if (fixed_iterations > 0)
       {
-         HYPRE_PCGSetAbsoluteTol(pcg_solver, 1e30);
+         HYPRE_PCGSetAbsoluteTol(pcg_solver, 0.0);
       }
       else
       {
@@ -597,7 +597,14 @@ main( hypre_int argc,
       HYPRE_BoomerAMGSetKeepTranspose(pcg_precond, keepTranspose);
       HYPRE_BoomerAMGSetCumNnzAP(pcg_precond, cum_nnz_AP);
       HYPRE_BoomerAMGSetMaxRowSum(pcg_precond, 1.0);
-      HYPRE_PCGSetMaxIter(pcg_solver, mg_max_iter);
+      if (fixed_iterations > 0)
+      {
+         HYPRE_PCGSetMaxIter(pcg_solver, fixed_iterations);
+      }
+      else
+      {
+         HYPRE_PCGSetMaxIter(pcg_solver, mg_max_iter);
+      }
       HYPRE_PCGSetPrecond(pcg_solver,
                           (HYPRE_PtrToSolverFcn) HYPRE_BoomerAMGSolve,
                           (HYPRE_PtrToSolverFcn) HYPRE_BoomerAMGSetup,
@@ -725,7 +732,7 @@ main( hypre_int argc,
       }
      if (fixed_iterations > 0)
       {
-         HYPRE_GMRESSetAbsoluteTol(pcg_solver, 1e30);
+         HYPRE_GMRESSetAbsoluteTol(pcg_solver, 0.0);
       }
       else
       {
@@ -751,7 +758,14 @@ main( hypre_int argc,
       HYPRE_BoomerAMGSetKeepTranspose(pcg_precond, keepTranspose);
       HYPRE_BoomerAMGSetCumNnzAP(pcg_precond, cum_nnz_AP);
       HYPRE_BoomerAMGSetMaxRowSum(pcg_precond, max_row_sum);
-      HYPRE_GMRESSetMaxIter(pcg_solver, mg_max_iter);
+      if (fixed_iterations > 0)
+      {
+         HYPRE_GMRESSetMaxIter(pcg_solver, fixed_iterations);
+      }
+      else
+      {
+         HYPRE_GMRESSetMaxIter(pcg_solver, mg_max_iter);
+      }
       HYPRE_GMRESSetPrecond(pcg_solver,
                             (HYPRE_PtrToSolverFcn) HYPRE_BoomerAMGSolve,
                             (HYPRE_PtrToSolverFcn) HYPRE_BoomerAMGSetup,
