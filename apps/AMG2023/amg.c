@@ -559,7 +559,7 @@ main( hypre_int argc,
       if (fixed_iterations > 0)
       {
          HYPRE_PCGSetMaxIter(pcg_solver, fixed_iterations);
-         HYPRE_PCGSetTol(pcg_solver, 1e30);
+         HYPRE_PCGSetTol(pcg_solver, 1.0e-50);
       }
       else
       {
@@ -569,7 +569,14 @@ main( hypre_int argc,
       HYPRE_PCGSetTwoNorm(pcg_solver, 1);
       HYPRE_PCGSetRelChange(pcg_solver, rel_change);
       HYPRE_PCGSetPrintLevel(pcg_solver, ioutdat);
-      HYPRE_PCGSetAbsoluteTol(pcg_solver, atol);
+      if (fixed_iterations > 0)
+      {
+         HYPRE_PCGSetAbsoluteTol(pcg_solver, 1e30);
+      }
+      else
+      {
+         HYPRE_PCGSetAbsoluteTol(pcg_solver, atol);
+      }
       HYPRE_PCGSetRecomputeResidual(pcg_solver, 1);
 
       /* use BoomerAMG as preconditioner */
@@ -708,21 +715,28 @@ main( hypre_int argc,
       if (fixed_iterations > 0)
       {
          HYPRE_GMRESSetMaxIter(pcg_solver, fixed_iterations);
-         HYPRE_GMRESSetTol(pcg_solver, 1e30);
+         HYPRE_GMRESSetMinIter(pcg_solver, fixed_iterations);
+         HYPRE_GMRESSetTol(pcg_solver, 1.0e-50);
       }
       else
       {
          HYPRE_GMRESSetMaxIter(pcg_solver, max_iter);
          HYPRE_GMRESSetTol(pcg_solver, tol);
       }
-      HYPRE_GMRESSetAbsoluteTol(pcg_solver, atol);
+     if (fixed_iterations > 0)
+      {
+         HYPRE_GMRESSetAbsoluteTol(pcg_solver, 1e30);
+      }
+      else
+      {
+         HYPRE_GMRESSetAbsoluteTol(pcg_solver, atol);
+      }
       HYPRE_GMRESSetLogging(pcg_solver, 1);
       HYPRE_GMRESSetPrintLevel(pcg_solver, ioutdat);
       HYPRE_GMRESSetRelChange(pcg_solver, rel_change);
 
       /* use BoomerAMG as preconditioner */
       if (myid == 0 && print_stats) { hypre_printf("Solver: AMG-GMRES\n"); }
-
       HYPRE_BoomerAMGCreate(&pcg_precond);
       HYPRE_BoomerAMGSetTol(pcg_precond, pc_tol);
       /*HYPRE_BoomerAMGSetCoarsenType(pcg_precond, coarsen_type);*/
