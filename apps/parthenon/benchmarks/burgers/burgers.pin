@@ -20,7 +20,8 @@ problem_id = burgers
 
 <parthenon/mesh>
 nghost = 4
-refinement = adaptive
+#refinement = adaptive
+refinement = none
 numlevel = 2
 deref_count = 10
 

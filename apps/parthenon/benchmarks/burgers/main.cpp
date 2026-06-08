@@ -47,7 +47,9 @@ int main(int argc, char *argv[]) {
     // This line actually runs the simulation
     auto driver_status = driver.Execute();
   }
+  std::cout << "Finished executing" << std::endl;
   // call MPI_Finalize and Kokkos::finalize if necessary
+  // MPI_Finalize();
   pman.ParthenonFinalize();
 
   // MPI and Kokkos can no longer be used

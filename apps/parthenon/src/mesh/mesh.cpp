@@ -694,9 +694,9 @@ Mesh::~Mesh() {
 #ifdef MPI_PARALLEL
   // Cleanup MPI comms
   for (auto &pair : mpi_comm_map_) {
-    PARTHENON_MPI_CHECK(MPI_Comm_free(&(pair.second)));
+    // PARTHENON_MPI_CHECK(MPI_Comm_free(&(pair.second)));
   }
-  mpi_comm_map_.clear();
+  // mpi_comm_map_.clear();
 #endif
 }
 

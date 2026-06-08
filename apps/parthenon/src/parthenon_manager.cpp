@@ -197,9 +197,12 @@ void ParthenonManager::ParthenonInitPackagesAndMesh() {
 }
 
 ParthenonStatus ParthenonManager::ParthenonFinalize() {
-  pmesh.reset();
+  // std::cout << "Resetting mesh" << std::endl;
+  // pmesh.reset();
+  std::cout << "Finalizing Kokkos" << std::endl;
   Kokkos::finalize();
 #ifdef MPI_PARALLEL
+  std::cout << "Finalizing MPI" << std::endl;
   MPI_Finalize();
 #endif
   return ParthenonStatus::complete;
