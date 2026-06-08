@@ -80,12 +80,13 @@ int main(int argc, char *argv[])
    int order_e = 1;
    int order_q = -1;
    int ode_solver_type = 4;
-   double t_final = 0.6;
-   double cfl = 0.5;
-   double cg_tol = 1e-8;
-   double ftz_tol = 0.0;
-   int cg_max_iter = 300;
-   int max_tsteps = -1;
+  double t_final = 0.6;
+    double cfl = 0.5;
+    double cg_tol = 1e-8;
+    double ftz_tol = 0.0;
+    int cg_max_iter = 300;
+    int max_tsteps = -1;
+    int fixed_steps = -1;
    bool p_assembly = true;
    bool impose_visc = false;
    bool visualization = false;
@@ -126,9 +127,11 @@ int main(int argc, char *argv[])
                   "Absolute flush-to-zero tolerance.");
    args.AddOption(&cg_max_iter, "-cgm", "--cg-max-steps",
                   "Maximum number of CG iterations (velocity linear solve).");
-   args.AddOption(&max_tsteps, "-ms", "--max-steps",
-                  "Maximum number of steps (negative means no restriction).");
-   args.AddOption(&p_assembly, "-pa", "--partial-assembly", "-fa",
+ args.AddOption(&max_tsteps, "-ms", "--max-steps",
+                   "Maximum number of steps (negative means no restriction).");
+    args.AddOption(&fixed_steps, "-fs", "--fixed-steps",
+                   "Run for a fixed number of steps (overrides -tf).");
+    args.AddOption(&p_assembly, "-pa", "--partial-assembly", "-fa",
                   "--full-assembly",
                   "Activate 1D tensor-based assembly (partial assembly).");
    args.AddOption(&impose_visc, "-iv", "--impose-viscosity", "-niv",
@@ -416,12 +419,13 @@ int main(int argc, char *argv[])
 
    for (int ti = 1; !last_step; ti++)
    {
-      if (t + dt >= t_final)
-      {
-         dt = t_final - t;
-         last_step = true;
-      }
-      if (steps == max_tsteps) { last_step = true; }
+    if (fixed_steps >= 0 && steps >= fixed_steps) { last_step = true; }
+       if (t + dt >= t_final)
+       {
+          dt = t_final - t;
+          last_step = true;
+       }
+       if (steps == max_tsteps) { last_step = true; }
       S_old = S;
       t_old = t;
       hydro.ResetTimeStepEstimate();

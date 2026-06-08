@@ -95,21 +95,21 @@ static void display_banner(std::ostream&);
 static void Checks(const int ti, const double norm, int &checks);
 
 #ifdef LAGHOS_USE_CALIPER
-   static void RecordAdiakMetadata(int dim, const char *mesh_file, int elem_per_mpi,
-                                 int nx, int ny, int nz, double blast_energy,
-                                 double Sx, double Sy, double Sz,
-                                 int rs_levels, int rp_levels, int problem,
-                                 int order_v, int order_e, int order_q,
-                                 int ode_solver_type, double t_final, double cfl,
-                                 double cg_tol, double ftz_tol, double delta_tol,
-                                 int cg_max_iter, int max_tsteps,
-                                 bool p_assembly, bool impose_visc,
-                                 bool visualization, int vis_steps, bool visit,
-                                 bool gfprint, const char *basename,
-                                 const char *device, bool check,
-                                 bool check_exact_sedov, bool mem_usage,
-                                 bool fom, bool gpu_aware_mpi, int dev_pool_size,
-                                 bool enable_nc, int dev);
+static void RecordAdiakMetadata(int dim, const char *mesh_file, int elem_per_mpi,
+                                  int nx, int ny, int nz, double blast_energy,
+                                  double Sx, double Sy, double Sz,
+                                  int rs_levels, int rp_levels, int problem,
+                                  int order_v, int order_e, int order_q,
+                                  int ode_solver_type, double t_final, double cfl,
+                                  double cg_tol, double ftz_tol, double delta_tol,
+                                  int cg_max_iter, int max_tsteps, int fixed_steps,
+                                  bool p_assembly, bool impose_visc,
+                                  bool visualization, int vis_steps, bool visit,
+                                  bool gfprint, const char *basename,
+                                  const char *device, bool check,
+                                  bool check_exact_sedov, bool mem_usage,
+                                  bool fom, bool gpu_aware_mpi, int dev_pool_size,
+                                  bool enable_nc, int dev);
 #endif
 
 int main(int argc, char *argv[])
@@ -137,12 +137,13 @@ int main(int argc, char *argv[])
    int order_q = -1;
    int ode_solver_type = 4;
    double t_final = 0.6;
-   double cfl = 0.5;
-   double cg_tol = 1e-8;
-   double ftz_tol = 0.0;
-   double delta_tol = 1e-12;
-   int cg_max_iter = 300;
-   int max_tsteps = -1;
+    double cfl = 0.5;
+    double cg_tol = 1e-8;
+    double ftz_tol = 0.0;
+    double delta_tol = 1e-12;
+    int cg_max_iter = 300;
+    int max_tsteps = -1;
+    int fixed_steps = -1;
    bool p_assembly = true;
    bool impose_visc = false;
    bool visualization = false;
@@ -228,8 +229,10 @@ int main(int argc, char *argv[])
    args.AddOption(&cg_max_iter, "-cgm", "--cg-max-steps",
                   "Maximum number of CG iterations (velocity linear solve).");
    args.AddOption(&max_tsteps, "-ms", "--max-steps",
-                  "Maximum number of steps (negative means no restriction).");
-   args.AddOption(&p_assembly, "-pa", "--partial-assembly", "-fa",
+                   "Maximum number of steps (negative means no restriction).");
+    args.AddOption(&fixed_steps, "-fs", "--fixed-steps",
+                   "Run for a fixed number of steps (overrides -tf).");
+    args.AddOption(&p_assembly, "-pa", "--partial-assembly", "-fa",
                   "--full-assembly",
                   "Activate 1D tensor-based assembly (partial assembly).");
    args.AddOption(&impose_visc, "-iv", "--impose-viscosity", "-niv",
@@ -279,13 +282,14 @@ int main(int argc, char *argv[])
 
       #ifdef LAGHOS_USE_CALIPER
          RecordAdiakMetadata(dim, mesh_file, elem_per_mpi, nx, ny, nz,
-                          blast_energy, Sx, Sy, Sz, rs_levels, rp_levels,
-                          problem, order_v, order_e, order_q, ode_solver_type,
-                          t_final, cfl, cg_tol, ftz_tol, delta_tol,
-                          cg_max_iter, max_tsteps, p_assembly, impose_visc,
-                          visualization, vis_steps, visit, gfprint, basename,
-                          device, check, check_exact_sedov, mem_usage, fom,
-                          gpu_aware_mpi, dev_pool_size, enable_nc, dev);
+                           blast_energy, Sx, Sy, Sz, rs_levels, rp_levels,
+                           problem, order_v, order_e, order_q, ode_solver_type,
+                           t_final, cfl, cg_tol, ftz_tol, delta_tol,
+                           cg_max_iter, max_tsteps, fixed_steps, p_assembly,
+                           impose_visc, visualization, vis_steps, visit,
+                           gfprint, basename, device, check, check_exact_sedov,
+                           mem_usage, fom, gpu_aware_mpi, dev_pool_size,
+                           enable_nc, dev);
       #endif
    }
 
@@ -733,12 +737,13 @@ int main(int argc, char *argv[])
 #ifdef LAGHOS_USE_CALIPER
       CALI_CXX_MARK_LOOP_ITERATION(mainloop_annotation, static_cast<int>(ti));
 #endif
-      if (t + dt >= t_final)
-      {
-         dt = t_final - t;
-         last_step = true;
-      }
-      if (steps == max_tsteps) { last_step = true; }
+     if (fixed_steps >= 0 && steps >= fixed_steps) { last_step = true; }
+       if (t + dt >= t_final)
+       {
+          dt = t_final - t;
+          last_step = true;
+       }
+       if (steps == max_tsteps) { last_step = true; }
       S_old = S;
       t_old = t;
       hydro.ResetTimeStepEstimate();
@@ -1313,9 +1318,10 @@ static void RecordAdiakMetadata(int dim, const char *mesh_file, int elem_per_mpi
    adiak::value("cg-tol", cg_tol);
    adiak::value("ftz-tol", ftz_tol);
    adiak::value("delta-tol", delta_tol);
-   adiak::value("cg-max-steps", cg_max_iter);
-   adiak::value("max-steps", max_tsteps);
-   adiak::value("partial-assembly", (int)p_assembly);
+  adiak::value("cg-max-steps", cg_max_iter);
+    adiak::value("max-steps", max_tsteps);
+    adiak::value("fixed-steps", fixed_steps);
+    adiak::value("partial-assembly", (int)p_assembly);
    adiak::value("impose-viscosity", (int)impose_visc);
    adiak::value("visualization", (int)visualization);
    adiak::value("visualization-steps", vis_steps);
