@@ -1,0 +1,8 @@
+LICENSE.txt
+README.md
+setup.py
+exarl.egg-info/PKG-INFO
+exarl.egg-info/SOURCES.txt
+exarl.egg-info/dependency_links.txt
+exarl.egg-info/requires.txt
+exarl.egg-info/top_level.txt

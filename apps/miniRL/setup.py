@@ -1,0 +1,8 @@
+from setuptools import setup
+
+setup(name='exarl',
+      version='0.0.1',
+      description='ExaRL is a high performance reinforcement learning framework',
+      install_requires=['tensorflow==2.15.0', 'mpi4py', 'gym', 'ase',
+                        'lmfit', 'scikit-learn', 'pandas', 'numba', 'pybind11', 'pytest']
+      )
