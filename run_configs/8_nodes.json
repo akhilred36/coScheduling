@@ -1,6 +1,7 @@
 {
     "apps": {
       "beatnik": {
+          "type": "c",
           "path": "apps/beatnik/build/examples/",
           "exec": "rocketrig",
           "args": {
@@ -11,6 +12,7 @@
           }
       },
       "minife": {
+          "type": "c",
           "path": "apps/miniFE/kokkos/src/",
           "exec": "miniFE.x",
           "args": {
@@ -21,6 +23,7 @@
           }
       },
       "tricount": {
+          "type": "c",
           "path": "apps/tric/",
           "exec": "tric",
           "args": {
@@ -29,6 +32,7 @@
           }
       },
       "minivite": {
+          "type": "c",
           "path": "apps/miniVite/",
           "exec": "miniVite",
           "args": {
@@ -37,6 +41,7 @@
           }
       },
       "lammps": {
+          "type": "c",
           "path": "apps/lammps/build/",
           "exec": "lmp",
           "args": {
@@ -44,11 +49,75 @@
           }
       },
       "fiesta": {
+          "type": "c",
           "path": "apps/fiesta/build/",
           "exec": "fiesta",
           "args": {
               "": "/g/g90/alasandagutt1/repos/coScheduling/apps/fiesta/input/fiesta_448_1000_120ts.lua"
           }
-      }
+      },
+      "amg": {
+          "type": "c",
+          "path": "/g/g90/alasandagutt1/repos/coScheduling/apps/AMG2023/build/",
+          "exec": "amg",
+          "args": {
+              "-P": "14 8 4",
+              "-n": "90 220 240",
+              "-problem": "2",
+              "-iter": "280"
+          }
+      },
+      "laghos": {
+          "type": "c",
+          "path": "/g/g90/alasandagutt1/repos/coScheduling/apps/Laghos/build/",
+          "exec": "laghos",
+          "args": {
+              "-p": "1",
+              "-dim": "2",
+              "-nx": "185",
+              "-ny": "185",
+              "-nz": "185",
+              "-rs": "3",
+              "-tf": "0.8",
+              "-pa": "",
+              "-fs": "1500"
+          }
+    },
+    "kripke": {
+          "type": "c",
+          "path": "/g/g90/alasandagutt1/repos/coScheduling/apps/Kripke/build/",
+          "exec": "kripke.exe",
+          "args": {
+              "--procs": "7,8,8",
+              "--zones": "210,240,240",
+              "--niter": "15"
+          }
+    },
+    "quicksilver": {
+          "type": "c",
+          "path": "/g/g90/alasandagutt1/repos/coScheduling/apps/Quicksilver/src/",
+          "exec": "qs",
+          "args": {
+              "--nx": "512",
+              "--ny": "512",
+              "--nz": "512",
+              "--nSteps": "280"
+          }
+    },
+    "minigan": {
+          "type": "python",
+          "env": "/p/lustre2/alasandagutt1/python_venvs/basic/bin/activate",
+          "path": "/g/g90/alasandagutt1/repos/coScheduling/apps/miniGAN/pytorch/",
+          "exec": "minigan_driver.py",
+          "args": {
+              "--num-threads": "1",
+              "--output-dir": "/p/lustre2/alasandagutt1/minigan_output_dir",
+              "--data-dir": "/p/lustre2/alasandagutt1/minigan_bird_images",
+              "--batch-size": "448",
+              "--gen-filters": "256",
+              "--disc-filters": "256",
+              "--epochs": "25"
+          }
+    }
   }
 }
