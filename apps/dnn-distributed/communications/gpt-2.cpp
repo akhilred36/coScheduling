@@ -1,6 +1,5 @@
-// C++/MPI proxy • GPT2-large model 
+// C++/MPI proxy • GPT2-large model
 // Distributed training (hybrid pipeline x data parallelism)
-
 
 #include <mpi.h>
 #include <unistd.h>
@@ -10,8 +9,10 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#define RUN_COUNT 256
+// #define RUN_COUNT 256
+#define RUN_COUNT 70
 #define WARM_UP_ITERATIONS 10
+// #define WARM_UP_ITERATIONS 0
 
 //p2p msg size for GPT-2 with micro-batch size=1 and seq_length=632
 #define P2P_MESSAGE_SIZE 808960
@@ -42,8 +43,8 @@ int end_layer_grad_sizes[ENDING_NUM] = {1280, 4915200, 1638400, 1280, 6553600, 6
 
 #endif
 
-int run_gpt2_training(int grad_accumulation_steps, int stage_number, int num_grad_per_stage, 
-		 int total_stages, int allreduce_group_size, 
+int run_gpt2_training(int grad_accumulation_steps, int stage_number, int num_grad_per_stage,
+		 int total_stages, int allreduce_group_size,
 		 float **start_stage_grad_ptrs,
 		 float **sum_start_stage_grad_ptrs,
 		 float **finish_stage_grad_ptrs,
@@ -161,7 +162,6 @@ int main(int argc, char *argv[]){
     int stage_number = allreduce_group_color;
     assert(allreduce_group_color == p2p_group_rank);
 
-
     int num_layers_per_stage = (int)(num_layers/num_stages);
 
     int start_stage_grad_count = BEGINNING_NUM + (num_layers_per_stage - 1)*INTERMEDIATE_NUM;
@@ -189,7 +189,7 @@ int main(int argc, char *argv[]){
         num_grad_per_stage = num_layers_per_stage * INTERMEDIATE_NUM;
     }
 
-    int stage_grad_sizes[num_grad_per_stage]; 
+    int stage_grad_sizes[num_grad_per_stage];
 
     if(stage_number == 0){
         for(int i=0; i<BEGINNING_NUM; i++){
@@ -201,7 +201,7 @@ int main(int argc, char *argv[]){
             for(int k=0; k<INTERMEDIATE_NUM; k++){
                 start_stage_grad_ptrs[INTERMEDIATE_NUM*j+k+BEGINNING_NUM] = (float *)calloc(intermediate_layer_grad_sizes[k], sizeof(float));
                 sum_start_stage_grad_ptrs[INTERMEDIATE_NUM*j+k+BEGINNING_NUM] = (float *)calloc(intermediate_layer_grad_sizes[k], sizeof(float));
-                stage_grad_sizes[INTERMEDIATE_NUM*j+k+BEGINNING_NUM] = intermediate_layer_grad_sizes[k];                
+                stage_grad_sizes[INTERMEDIATE_NUM*j+k+BEGINNING_NUM] = intermediate_layer_grad_sizes[k];
             }
         }
     }
@@ -210,13 +210,13 @@ int main(int argc, char *argv[]){
             for(int k=0; k<INTERMEDIATE_NUM; k++){
                 finish_stage_grad_ptrs[INTERMEDIATE_NUM*j+k] = (float *)calloc(intermediate_layer_grad_sizes[k], sizeof(float));
                 sum_finish_stage_grad_ptrs[INTERMEDIATE_NUM*j+k] = (float *)calloc(intermediate_layer_grad_sizes[k], sizeof(float));
-                stage_grad_sizes[INTERMEDIATE_NUM*j+k] = intermediate_layer_grad_sizes[k];                
+                stage_grad_sizes[INTERMEDIATE_NUM*j+k] = intermediate_layer_grad_sizes[k];
             }
         }
         for(int i=0; i<ENDING_NUM; i++){
             finish_stage_grad_ptrs[INTERMEDIATE_NUM*(num_layers_per_stage-1)+i] = (float *)calloc(end_layer_grad_sizes[i], sizeof(float));
             sum_finish_stage_grad_ptrs[INTERMEDIATE_NUM*(num_layers_per_stage-1)+i] = (float *)calloc(end_layer_grad_sizes[i], sizeof(float));
-            stage_grad_sizes[INTERMEDIATE_NUM*(num_layers_per_stage-1)+i] = end_layer_grad_sizes[i]; 
+            stage_grad_sizes[INTERMEDIATE_NUM*(num_layers_per_stage-1)+i] = end_layer_grad_sizes[i];
         }
     }
     else{
@@ -224,7 +224,7 @@ int main(int argc, char *argv[]){
             for(int k=0; k<INTERMEDIATE_NUM; k++){
                 intermediate_stage_grad_ptrs[INTERMEDIATE_NUM*j+k] = (float *)calloc(intermediate_layer_grad_sizes[k], sizeof(float));
                 sum_intermediate_stage_grad_ptrs[INTERMEDIATE_NUM*j+k] = (float *)calloc(intermediate_layer_grad_sizes[k], sizeof(float));
-                stage_grad_sizes[INTERMEDIATE_NUM*j+k] = intermediate_layer_grad_sizes[k];                
+                stage_grad_sizes[INTERMEDIATE_NUM*j+k] = intermediate_layer_grad_sizes[k];
             }
         }
     }
@@ -233,7 +233,7 @@ int main(int argc, char *argv[]){
     //warmup
     for(int wmp = 0; wmp < WARM_UP_ITERATIONS; wmp++){
         run_gpt2_training(grad_accumulation_steps, stage_number, num_grad_per_stage,
-		     num_stages, allreduce_group_size, 
+		     num_stages, allreduce_group_size,
             	     start_stage_grad_ptrs,
             	     sum_start_stage_grad_ptrs,
             	     finish_stage_grad_ptrs,
@@ -247,7 +247,7 @@ int main(int argc, char *argv[]){
     start_time = MPI_Wtime();
     for(int iter = 0; iter < RUN_COUNT; iter++){
         run_gpt2_training(grad_accumulation_steps, stage_number, num_grad_per_stage,
-		     num_stages, allreduce_group_size, 
+		     num_stages, allreduce_group_size,
             	     start_stage_grad_ptrs,
             	     sum_start_stage_grad_ptrs,
             	     finish_stage_grad_ptrs,

@@ -118,6 +118,13 @@
               "--disc-filters": "256",
               "--epochs": "25"
           }
+    },
+    "gpt2": {
+          "type": "c",
+          "path": "/g/g90/alasandagutt1/repos/coScheduling/apps/dnn-distributed/build/",
+          "exec": "gpt-2",
+          "args": {
+          }
     }
   }
 }
