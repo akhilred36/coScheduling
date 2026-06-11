@@ -190,7 +190,7 @@ class CoSchedulingRunsParser:
         self._runs = []
         
         # Load the run config to map exec names to app names
-        run_config_path = Path("../run_configs/1_nodes.json")
+        run_config_path = Path("../run_configs/8_nodes.json")
         if not run_config_path.exists():
             raise FileNotFoundError(f"Run config file not found: {run_config_path}")
         
