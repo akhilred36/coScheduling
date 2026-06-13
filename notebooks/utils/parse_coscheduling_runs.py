@@ -10,6 +10,7 @@ import pandas as pd
 from typing import List, Optional, Tuple, Union
 from pathlib import Path
 from dataclasses import dataclass
+from tqdm import tqdm
 
 from .mpip_parse import MPIPParser
 
@@ -43,7 +44,7 @@ class CoSchedulingRunsParser:
         self.base_path: Optional[Path] = Path(base_path) if base_path else None
         self._runs: List[RunMetrics] = []
     
-    def parse_isolated(self, directory: Union[str, Path]) -> pd.DataFrame:
+    def parse_isolated(self, directory: Union[str, Path], progress=True) -> pd.DataFrame:
         """
         Parse an isolated experiment directory and extract metrics.
         
@@ -56,6 +57,7 @@ class CoSchedulingRunsParser:
         
         Args:
             directory: Path to the experiment data directory.
+            progress: Whether to show progress bars.
             
         Returns:
             pandas DataFrame with columns:
@@ -73,19 +75,18 @@ class CoSchedulingRunsParser:
         self.base_path = directory
         self._runs = []
         
-        # Count expected directories and track failures
+        # Phase 1: Collect all file paths and metadata first
         total_subdirs = 0
         parsed_subdirs = 0
         failed_subdirs = []
+        collected_files = []
         
-        # Iterate over all subdirectories matching the pattern <numNodes>_<app>_<runIteration>
-        for subdir in directory.iterdir():
+        for subdir in tqdm(directory.iterdir(), desc="Phase 1: Collecting files", disable=not progress):
             if not subdir.is_dir():
                 continue
             
             total_subdirs += 1
             
-            # Parse the directory name: <numNodes>_<app>_<runIteration>
             match = re.match(r'^(\d+)_(.+)_(\d+)$', subdir.name)
             if not match:
                 failed_subdirs.append(f"{subdir.name}: failed to match directory pattern")
@@ -95,7 +96,6 @@ class CoSchedulingRunsParser:
             app = match.group(2)
             run_iteration = int(match.group(3))
             
-            # Find the .mpiP file in mpip_profiles subdirectory
             mpip_profiles_dir = subdir / "mpip_profiles"
             if not mpip_profiles_dir.exists():
                 failed_subdirs.append(f"{subdir.name}: mpip_profiles directory not found")
@@ -106,28 +106,34 @@ class CoSchedulingRunsParser:
                 failed_subdirs.append(f"{subdir.name}: no .mpiP files found")
                 continue
             
-            # Parse the first .mpiP file found
             mpiP_file = mpiP_files[0]
-            parser = MPIPParser(mpiP_file)
+            collected_files.append({
+                'subdir_name': subdir.name,
+                'mpiP_file': mpiP_file,
+                'num_nodes': num_nodes,
+                'app': app,
+                'run_iteration': run_iteration
+            })
+        
+        # Phase 2: Parse all collected files
+        for file_info in tqdm(collected_files, desc="Phase 2: Parsing files", disable=not progress):
+            parser = MPIPParser(file_info['mpiP_file'])
             
-            # Extract metrics from MPI Time section
             if parser.mpi_time_df is not None:
                 app_time_avg = parser.mpi_time_df['app_time'].mean()
                 mpi_time_avg = parser.mpi_time_df['mpi_time'].mean()
             else:
-                failed_subdirs.append(f"{subdir.name}: mpi_time_df is None")
+                failed_subdirs.append(f"{file_info['subdir_name']}: mpi_time_df is None")
                 continue
             
-            # Extract total messages sent from aggregate sent statistics
             total_messages_sent = 0
             if parser.aggregate_sent_df is not None:
                 total_messages_sent = parser.aggregate_sent_df['count'].sum()
             
-            # Create RunMetrics object
             metrics = RunMetrics(
-                app=app,
-                num_nodes=num_nodes,
-                run_iteration=run_iteration,
+                app=file_info['app'],
+                num_nodes=file_info['num_nodes'],
+                run_iteration=file_info['run_iteration'],
                 app_time_average=app_time_avg,
                 mpi_time_average=mpi_time_avg,
                 total_messages_sent=total_messages_sent
@@ -154,7 +160,7 @@ class CoSchedulingRunsParser:
         
         return df
     
-    def parse_coscheduled(self, directory: Union[str, Path]) -> pd.DataFrame:
+    def parse_coscheduled(self, directory: Union[str, Path], progress=True) -> pd.DataFrame:
         """
         Parse a coscheduled experiment directory and extract metrics for paired applications.
         
@@ -168,6 +174,7 @@ class CoSchedulingRunsParser:
         
         Args:
             directory: Path to the experiment data directory.
+            progress: Whether to show progress bars.
             
         Returns:
             pandas DataFrame with columns:
@@ -189,7 +196,6 @@ class CoSchedulingRunsParser:
         self.base_path = directory
         self._runs = []
         
-        # Load the run config to map exec names to app names
         run_config_path = Path("../run_configs/8_nodes.json")
         if not run_config_path.exists():
             raise FileNotFoundError(f"Run config file not found: {run_config_path}")
@@ -198,26 +204,23 @@ class CoSchedulingRunsParser:
         with open(run_config_path, 'r') as f:
             run_config = json.load(f)
         
-        # Create reverse mapping: exec -> app
         exec_to_app = {}
         for app_name, app_info in run_config.get("apps", {}).items():
             exec_name = app_info.get("exec")
             if exec_name:
                 exec_to_app[exec_name] = app_name
         
-        # Count expected directories and track failures
         total_subdirs = 0
         parsed_subdirs = 0
         failed_subdirs = []
+        collected_files = []
         
-        # Iterate over all subdirectories matching the pattern <numNodes>_<appA>_<appB>_<runIteration>
-        for subdir in directory.iterdir():
+        for subdir in tqdm(directory.iterdir(), desc="Phase 1: Collecting files", disable=not progress):
             if not subdir.is_dir():
                 continue
             
             total_subdirs += 1
             
-            # Parse the directory name: <numNodes>_<appA>_<appB>_<runIteration>
             match = re.match(r'^(\d+)_(.+)_(.+)_(\d+)$', subdir.name)
             if not match:
                 failed_subdirs.append(f"{subdir.name}: failed to match directory pattern")
@@ -228,7 +231,6 @@ class CoSchedulingRunsParser:
             app_b_name = match.group(3)
             run_iteration = int(match.group(4))
             
-            # Find the .mpiP files in mpip_profiles subdirectory
             mpip_profiles_dir = subdir / "mpip_profiles"
             if not mpip_profiles_dir.exists():
                 failed_subdirs.append(f"{subdir.name}: mpip_profiles directory not found")
@@ -239,24 +241,27 @@ class CoSchedulingRunsParser:
                 failed_subdirs.append(f"{subdir.name}: expected 2 .mpiP files, found {len(mpiP_files)}")
                 continue
             
-            # Parse both .mpiP files and identify which app each belongs to
+            collected_files.append({
+                'subdir_name': subdir.name,
+                'mpiP_files': mpiP_files,
+                'num_nodes': num_nodes,
+                'app_a_name': app_a_name,
+                'app_b_name': app_b_name,
+                'run_iteration': run_iteration
+            })
+        
+        for file_info in tqdm(collected_files, desc="Phase 2: Parsing files", disable=not progress):
             app_a_metrics = None
             app_b_metrics = None
             parse_errors = []
             
-            for mpiP_file in mpiP_files:
-                # Extract exec name from filename (e.g., "fiesta.56.712080.1.mpiP" -> "fiesta")
-                # For files like "miniFE.x.56.1568247.1.mpiP", we need to handle the case where
-                # the exec name contains a dot (e.g., "miniFE.x")
+            for mpiP_file in file_info['mpiP_files']:
                 filename = mpiP_file.stem
                 parts = filename.split('.')
                 
-                # Try to match the exec name by checking if the full stem or parts match
                 exec_name = None
-                # First try the full stem (in case it matches directly)
                 if filename in exec_to_app:
                     exec_name = filename
-                # Otherwise, try to reconstruct by combining parts
                 else:
                     for i in range(len(parts), 0, -1):
                         candidate = '.'.join(parts[:i])
@@ -268,13 +273,9 @@ class CoSchedulingRunsParser:
                     parse_errors.append(f"Could not find exec_name for '{filename}' in exec_to_app mapping")
                     continue
                 
-                # Map exec name to app name
                 app_name = exec_to_app[exec_name]
-                
-                # Parse the mpiP file
                 parser = MPIPParser(mpiP_file)
                 
-                # Extract metrics from MPI Time section
                 if parser.mpi_time_df is not None:
                     app_time_avg = parser.mpi_time_df['app_time'].mean()
                     mpi_time_avg = parser.mpi_time_df['mpi_time'].mean()
@@ -282,42 +283,37 @@ class CoSchedulingRunsParser:
                     parse_errors.append(f"mpi_time_df is None for '{filename}'")
                     continue
                 
-                # Extract total messages sent from aggregate sent statistics
                 total_messages_sent = 0
                 if parser.aggregate_sent_df is not None:
                     total_messages_sent = int(parser.aggregate_sent_df['count'].sum())
                 
                 metrics = RunMetrics(
                     app=app_name,
-                    num_nodes=num_nodes,
-                    run_iteration=run_iteration,
+                    num_nodes=file_info['num_nodes'],
+                    run_iteration=file_info['run_iteration'],
                     app_time_average=app_time_avg,
                     mpi_time_average=mpi_time_avg,
                     total_messages_sent=total_messages_sent
                 )
                 
-                # Assign to App A or App B based on app name
-                # Special handling for when both apps are the same (e.g., fiesta_fiesta)
-                if app_name == app_a_name:
+                if app_name == file_info['app_a_name']:
                     if app_a_metrics is None:
                         app_a_metrics = metrics
                     elif app_b_metrics is None:
                         app_b_metrics = metrics
-                elif app_name == app_b_name:
+                elif app_name == file_info['app_b_name']:
                     app_b_metrics = metrics
             
-            # Check for parse errors
             if parse_errors:
-                failed_subdirs.append(f"{subdir.name}: {'; '.join(parse_errors)}")
+                failed_subdirs.append(f"{file_info['subdir_name']}: {'; '.join(parse_errors)}")
                 continue
             
-            # Only add if both apps were found and parsed
             if app_a_metrics is not None and app_b_metrics is not None:
                 self._runs.append({
-                    "Num Nodes": num_nodes,
-                    "App A": app_a_name,
-                    "App B": app_b_name,
-                    "Run Iteration": run_iteration,
+                    "Num Nodes": file_info['num_nodes'],
+                    "App A": file_info['app_a_name'],
+                    "App B": file_info['app_b_name'],
+                    "Run Iteration": file_info['run_iteration'],
                     "App A Time Average": app_a_metrics.app_time_average,
                     "App B Time Average": app_b_metrics.app_time_average,
                     "App A MPI Time Average": app_a_metrics.mpi_time_average,
@@ -329,10 +325,10 @@ class CoSchedulingRunsParser:
             else:
                 missing_apps = []
                 if app_a_metrics is None:
-                    missing_apps.append(app_a_name)
+                    missing_apps.append(file_info['app_a_name'])
                 if app_b_metrics is None:
-                    missing_apps.append(app_b_name)
-                failed_subdirs.append(f"{subdir.name}: could not find metrics for app(s) {missing_apps}")
+                    missing_apps.append(file_info['app_b_name'])
+                failed_subdirs.append(f"{file_info['subdir_name']}: could not find metrics for app(s) {missing_apps}")
         
         # Check for failures and raise error if any
         if failed_subdirs:
@@ -341,12 +337,11 @@ class CoSchedulingRunsParser:
                 error_msg += f"  - {failure}\n"
             raise ValueError(error_msg)
         
-        # Convert to DataFrame
         df = pd.DataFrame(self._runs)
         
         return df
     
-    def parse_inhibitor_coscheduled(self, directory: Union[str, Path]) -> pd.DataFrame:
+    def parse_inhibitor_coscheduled(self, directory: Union[str, Path], progress=True) -> pd.DataFrame:
         """
         Parse an inhibitor coscheduled experiment directory and extract metrics.
         
@@ -380,14 +375,15 @@ class CoSchedulingRunsParser:
         self.base_path = directory
         self._runs = []
         
-        # Count expected directories and track failures
+        # Phase 1: Collect all file paths and metadata first
+        # This allows the OS to cache all file reads before parsing begins
         total_subdirs = 0
         parsed_subdirs = 0
         failed_subdirs = []
+        collected_files = []  # List of (subdir_name, mpiP_file_path, parsed_metadata)
         
-        # Iterate over all subdirectories matching the pattern
-        # <numNodes>_<app>_inhib_<Inhib Message Size>_<Inhib Wait Time (us)>_-1_<Inhib Comm Mode>_<Inhib Comm Sparsity>_<runIteration>
-        for subdir in directory.iterdir():
+        # First pass: collect all valid file paths and parse directory names
+        for subdir in tqdm(directory.iterdir(), desc="Phase 1: Collecting files", disable=not progress):
             if not subdir.is_dir():
                 continue
             
@@ -423,16 +419,30 @@ class CoSchedulingRunsParser:
                 failed_subdirs.append(f"{subdir.name}: no .mpiP files found")
                 continue
             
-            # Parse the first .mpiP file found
+            # Store file path and metadata for later processing
             mpiP_file = mpiP_files[0]
-            parser = MPIPParser(mpiP_file)
+            collected_files.append({
+                'subdir_name': subdir.name,
+                'mpiP_file': mpiP_file,
+                'num_nodes': num_nodes,
+                'app': app,
+                'inhib_message_size': inhib_message_size,
+                'inhib_wait_time_us': inhib_wait_time_us,
+                'inhib_comm_mode': inhib_comm_mode,
+                'inhib_comm_sparsity': inhib_comm_sparsity,
+                'run_iteration': run_iteration
+            })
+        
+        # Phase 2: Parse all collected files
+        for file_info in tqdm(collected_files, desc="Phase 2: Parsing files", disable=not progress):
+            parser = MPIPParser(file_info['mpiP_file'])
             
             # Extract metrics from MPI Time section
             if parser.mpi_time_df is not None:
                 app_time_avg = parser.mpi_time_df['app_time'].mean()
                 mpi_time_avg = parser.mpi_time_df['mpi_time'].mean()
             else:
-                failed_subdirs.append(f"{subdir.name}: mpi_time_df is None")
+                failed_subdirs.append(f"{file_info['subdir_name']}: mpi_time_df is None")
                 continue
             
             # Extract total messages sent from aggregate sent statistics
@@ -442,13 +452,13 @@ class CoSchedulingRunsParser:
             
             # Store metrics with inhibitor info
             self._runs.append({
-                "App": app,
-                "Num Nodes": num_nodes,
-                "Inhib Message Size": inhib_message_size,
-                "Inhib Wait Time (us)": inhib_wait_time_us,
-                "Inhib Comm Sparsity": inhib_comm_sparsity,
-                "Inhib Comm Mode": inhib_comm_mode,
-                "Run Iteration": run_iteration,
+                "App": file_info['app'],
+                "Num Nodes": file_info['num_nodes'],
+                "Inhib Message Size": file_info['inhib_message_size'],
+                "Inhib Wait Time (us)": file_info['inhib_wait_time_us'],
+                "Inhib Comm Sparsity": file_info['inhib_comm_sparsity'],
+                "Inhib Comm Mode": file_info['inhib_comm_mode'],
+                "Run Iteration": file_info['run_iteration'],
                 "App Time Average": app_time_avg,
                 "MPI Time Average": mpi_time_avg,
                 "Total Messages Sent": total_messages_sent
