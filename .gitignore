@@ -15,6 +15,6 @@ apps/tric/generate_graph_mpi
 # Data
 data/*
 apps/tric/*.bin
-sample_data/*
+run_data/*
 apps/miniFE/kokkos/src/*.yaml
 **/*.mpiP
