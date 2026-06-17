@@ -27,7 +27,7 @@ class FeatureSelection:
         Returns:
             dict: Feature selection results from all methods
         """
-        TARGET_COL = "App A Co-Scheduled Time with App B"
+        TARGET_COL = "App A Co-Scheduled MPI Time with App B"
         PRESERVE_COLS = ["App A", "App B"]
 
         self.df = df
@@ -119,7 +119,7 @@ class FeatureSelection:
 
     def _select_by_correlation(self, df: pd.DataFrame, feature_cols: list, k: int) -> list:
         """Pearson correlation between each feature and the target."""
-        TARGET_COL = "App A Co-Scheduled Time with App B"
+        TARGET_COL = "App A Co-Scheduled MPI Time with App B"
         print("\n[1] Pearson Correlation ...")
         corr = df[feature_cols + [TARGET_COL]].corr()[TARGET_COL].drop(TARGET_COL)
         top = corr.abs().nlargest(k).index.tolist()

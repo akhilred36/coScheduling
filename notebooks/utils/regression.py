@@ -26,7 +26,7 @@ class Regression:
             - "log_cosh"  : approximate log-cosh via Huber on scaled target
         """
         self.loss_type = loss_type
-        self.TARGET_COL = "App A Co-Scheduled Time with App B"
+        self.TARGET_COL = "App A Co-Scheduled MPI Time with App B"
         self.PRESERVE_COLS = ["App A", "App B"]
 
     def train_and_evaluate(
