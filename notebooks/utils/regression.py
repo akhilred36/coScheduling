@@ -400,3 +400,75 @@ class Regression:
             predictions_df[f"y_pred_{name}"] = preds
 
         return predictions_df
+
+    def get_error_metrics(self, predictions_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Calculate error metrics for each y_pred method in the dataframe.
+
+        Parameters
+        ----------
+        predictions_df : pd.DataFrame
+            DataFrame with 'y_true' column and 'y_pred_*' columns from predict().
+
+        Returns
+        -------
+        pd.DataFrame
+            DataFrame with columns: ["model", "mse", "mae", "r2", "rmse", "mape"]
+        """
+        from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+        y_true = predictions_df["y_true"].values
+
+        records = []
+
+        if "App A Isolated MPI Time" in predictions_df.columns:
+            y_pred = predictions_df["App A Isolated MPI Time"].values
+            mse = mean_squared_error(y_true, y_pred)
+            mae = mean_absolute_error(y_true, y_pred)
+            r2 = r2_score(y_true, y_pred)
+            rmse = np.sqrt(mse)
+
+            y_true_nonzero = y_true[y_true != 0]
+            y_pred_nonzero = y_pred[y_true != 0]
+            if len(y_true_nonzero) > 0:
+                mape = np.mean(np.abs((y_true_nonzero - y_pred_nonzero) / y_true_nonzero)) * 100
+            else:
+                mape = 0.0
+
+            records.append({
+                "model": "App A Isolated MPI Time",
+                "mse": round(mse, 4),
+                "mae": round(mae, 4),
+                "r2": round(r2, 4),
+                "rmse": round(rmse, 4),
+                "mape": round(mape, 4),
+            })
+
+        pred_cols = [col for col in predictions_df.columns if col.startswith("y_pred_")]
+
+        for col in pred_cols:
+            model_name = col.replace("y_pred_", "")
+            y_pred = predictions_df[col].values
+
+            mse = mean_squared_error(y_true, y_pred)
+            mae = mean_absolute_error(y_true, y_pred)
+            r2 = r2_score(y_true, y_pred)
+            rmse = np.sqrt(mse)
+
+            y_true_nonzero = y_true[y_true != 0]
+            y_pred_nonzero = y_pred[y_true != 0]
+            if len(y_true_nonzero) > 0:
+                mape = np.mean(np.abs((y_true_nonzero - y_pred_nonzero) / y_true_nonzero)) * 100
+            else:
+                mape = 0.0
+
+            records.append({
+                "model": model_name,
+                "mse": round(mse, 4),
+                "mae": round(mae, 4),
+                "r2": round(r2, 4),
+                "rmse": round(rmse, 4),
+                "mape": round(mape, 4),
+            })
+
+        return pd.DataFrame(records)
