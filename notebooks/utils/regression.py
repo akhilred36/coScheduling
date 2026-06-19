@@ -12,7 +12,7 @@ RANDOM_STATE = 42
 
 
 class Regression:
-    def __init__(self, loss_type: str = "squared", scaler_type: str = "standard"):
+    def __init__(self, loss_type: str = "squared", scaler_type: str = "standard", TARGET_COL: str = "App A Co-Scheduled MPI Time with App B"):
         """
         Initialize the Regression model trainer.
 
@@ -26,7 +26,7 @@ class Regression:
             - "log_cosh"  : approximate log-cosh via Huber on scaled target
         """
         self.loss_type = loss_type
-        self.TARGET_COL = "App A Co-Scheduled MPI Time with App B"
+        self.TARGET_COL = TARGET_COL
         self.PRESERVE_COLS = ["App A", "App B"]
         self.models_ = None
         self.scaler_type = scaler_type
@@ -96,22 +96,6 @@ class Regression:
 
         n_samples = len(y)
         k_neighbors = min(3, n_samples - 1)
-
-        sample_weights = None
-        if "App A Isolated MPI Time" in df.columns:
-            isolated_time = df["App A Isolated MPI Time"].values.astype(float)
-            coscheduled_time = df[TARGET_COL].values.astype(float)
-            mask = (isolated_time != 0) & ~np.isnan(isolated_time) & ~np.isnan(coscheduled_time)
-            isolated_filtered = isolated_time[mask]
-            coscheduled_filtered = coscheduled_time[mask]
-            pct_diff = np.abs((isolated_filtered - coscheduled_filtered) / isolated_filtered)
-            weights = 1 + pct_diff
-            weights = np.clip(weights, 1.0, 10.0)
-            sample_weights = np.ones(n_samples)
-            filtered_indices = np.where(mask)[0]
-            for i, orig_idx in enumerate(filtered_indices):
-                if orig_idx in df_filtered.index:
-                    sample_weights[df_filtered.index.get_loc(orig_idx)] = weights[i]
 
         models_default = {
             "Ridge": Ridge(alpha=1.0),
@@ -214,10 +198,6 @@ class Regression:
             )
 
         print(f"  Loss type          : {loss_type}")
-        if sample_weights is not None:
-            print(f"  Sample weights     : ENABLED (range: [{sample_weights.min():.2f}, {sample_weights.max():.2f}], mean: {sample_weights.mean():.2f})")
-        else:
-            print(f"  Sample weights     : NOT USED (\"App A Isolated MPI Time\" not in dataframe)")
 
         loo = LeaveOneOut()
         loo_preds_dict = {}
@@ -231,16 +211,7 @@ class Regression:
                     y_scaled[train_idx] if y_scaler is not None else y[train_idx]
                 )
                 X_train = X_scaled[train_idx]
-                w_train = sample_weights[train_idx] if sample_weights is not None else None
-                try:
-                    if w_train is not None:
-                        model.fit(X_train, y_train, sample_weight=w_train)
-                        print(f"\n  [Weighted fit used for {name}]")
-                    else:
-                        model.fit(X_train, y_train)
-                except TypeError:
-                    model.fit(X_train, y_train)
-                    print(f"\n  [Sample weight NOT supported by {name}]")
+                model.fit(X_train, y_train)
                 pred = model.predict(X_scaled[test_idx])
                 if y_scaler is not None:
                     pred = y_scaler.inverse_transform(pred.reshape(-1, 1)).ravel()
@@ -450,57 +421,19 @@ class Regression:
         Returns
         -------
         pd.DataFrame
-            DataFrame with columns: ["model", "mse", "mae", "r2", "rmse", "mape", "wmse", "wmae", "wrmse", "wmape"]
+            DataFrame with columns: ["model", "mse", "mae", "r2", "rmse", "mape"]
         """
         from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
         y_true = predictions_df["y_true"].values
 
-        def weighted_metrics(y_true, y_pred, weights):
-            """Compute weighted error metrics."""
-            weights = np.array(weights)
-            weights_sum = np.sum(weights)
-            
-            weighted_mse = np.sum(weights * (y_true - y_pred) ** 2) / weights_sum
-            weighted_mae = np.sum(weights * np.abs(y_true - y_pred)) / weights_sum
-            weighted_rmse = np.sqrt(weighted_mse)
-            
-            y_true_nonzero = y_true[weights != 0]
-            y_pred_nonzero = y_pred[weights != 0]
-            w_nonzero = weights[weights != 0]
-            if len(y_true_nonzero) > 0:
-                weighted_mape = np.sum(w_nonzero * np.abs((y_true_nonzero - y_pred_nonzero) / y_true_nonzero)) / np.sum(w_nonzero) * 100
-            else:
-                weighted_mape = 0.0
-            
-            return weighted_mse, weighted_mae, weighted_rmse, weighted_mape
-
-        def compute_sample_weights(predictions_df):
-            """Compute sample weights based on percentage difference."""
-            if "App A Isolated MPI Time" not in predictions_df.columns:
-                return None
-            
-            isolated_time = predictions_df["App A Isolated MPI Time"].values
-            coscheduled_time = predictions_df["App A Co-Scheduled MPI Time with App B"].values
-            
-            mask = (isolated_time != 0) & ~np.isnan(isolated_time) & ~np.isnan(coscheduled_time)
-            if mask.sum() == 0:
-                return None
-            
-            isolated_filtered = isolated_time[mask]
-            coscheduled_filtered = coscheduled_time[mask]
-            pct_diff = np.abs((isolated_filtered - coscheduled_filtered) / isolated_filtered)
-            weights = 1 + pct_diff
-            weights = np.clip(weights, 1.0, 10.0)
-            
-            return weights
-
         records = []
 
-        weights = compute_sample_weights(predictions_df)
-
         if "App A Isolated MPI Time" in predictions_df.columns:
+
             y_pred = predictions_df["App A Isolated MPI Time"].values
+            if ("Slowdown" in self.TARGET_COL):
+                y_pred = np.ones_like(y_pred) * 1.0
             
             mse = mean_squared_error(y_true, y_pred)
             mae = mean_absolute_error(y_true, y_pred)
@@ -513,11 +446,6 @@ class Regression:
                 mape = np.mean(np.abs((y_true_nonzero - y_pred_nonzero) / y_true_nonzero)) * 100
             else:
                 mape = 0.0
-            
-            if weights is not None:
-                wmse, wmae, wrmse, wmape = weighted_metrics(y_true, y_pred, weights)
-            else:
-                wmse, wmae, wrmse, wmape = None, None, None, None
 
             records.append({
                 "model": "App A Isolated MPI Time",
@@ -526,10 +454,6 @@ class Regression:
                 "r2": round(r2, 4),
                 "rmse": round(rmse, 4),
                 "mape": round(mape, 4),
-                "wmse": round(wmse, 4) if wmse is not None else None,
-                "wmae": round(wmae, 4) if wmae is not None else None,
-                "wrmse": round(wrmse, 4) if wrmse is not None else None,
-                "wmape": round(wmape, 4) if wmape is not None else None,
             })
 
         pred_cols = [col for col in predictions_df.columns if col.startswith("y_pred_")]
@@ -550,11 +474,6 @@ class Regression:
             else:
                 mape = 0.0
 
-            if weights is not None:
-                wmse, wmae, wrmse, wmape = weighted_metrics(y_true, y_pred, weights)
-            else:
-                wmse, wmae, wrmse, wmape = None, None, None, None
-
             records.append({
                 "model": model_name,
                 "mse": round(mse, 4),
@@ -562,10 +481,6 @@ class Regression:
                 "r2": round(r2, 4),
                 "rmse": round(rmse, 4),
                 "mape": round(mape, 4),
-                "wmse": round(wmse, 4) if wmse is not None else None,
-                "wmae": round(wmae, 4) if wmae is not None else None,
-                "wrmse": round(wrmse, 4) if wrmse is not None else None,
-                "wmape": round(wmape, 4) if wmape is not None else None,
             })
 
         return pd.DataFrame(records)

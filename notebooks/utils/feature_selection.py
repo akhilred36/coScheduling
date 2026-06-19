@@ -10,7 +10,8 @@ from sklearn.linear_model import Lasso, Ridge
 class FeatureSelection:
     """Feature selection for co-scheduled app timing data."""
 
-    def __init__(self):
+    def __init__(self, TARGET_COL: str = "App A Co-Scheduled MPI Time with App B"):
+        self.TARGET_COL = TARGET_COL
         self.all_selections = None
         self.feature_cols = None
         self.df = None
@@ -27,7 +28,6 @@ class FeatureSelection:
         Returns:
             dict: Feature selection results from all methods
         """
-        TARGET_COL = "App A Co-Scheduled MPI Time with App B"
         PRESERVE_COLS = ["App A", "App B"]
 
         self.df = df
@@ -36,11 +36,11 @@ class FeatureSelection:
         # Identify columns
         feature_cols = [
             c for c in df.columns
-            if c not in PRESERVE_COLS + [TARGET_COL]
+            if c not in PRESERVE_COLS + [self.TARGET_COL]
         ]
         self.feature_cols = feature_cols
         print(f"  Preserved columns : {PRESERVE_COLS}")
-        print(f"  Target column     : {TARGET_COL}")
+        print(f"  Target column     : {self.TARGET_COL}")
         print(f"  Feature columns   : {len(feature_cols)}")
 
         always_include = "App A Isolated MPI Time"
@@ -50,7 +50,7 @@ class FeatureSelection:
 
         # Normalize features
         X_raw = df[feature_cols].values
-        y = df[TARGET_COL].values
+        y = df[self.TARGET_COL].values
 
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X_raw)
@@ -129,9 +129,8 @@ class FeatureSelection:
 
     def _select_by_correlation(self, df: pd.DataFrame, feature_cols: list, k: int) -> list:
         """Pearson correlation between each feature and the target."""
-        TARGET_COL = "App A Co-Scheduled MPI Time with App B"
         print("\n[1] Pearson Correlation ...")
-        corr = df[feature_cols + [TARGET_COL]].corr()[TARGET_COL].drop(TARGET_COL)
+        corr = df[feature_cols + [self.TARGET_COL]].corr()[self.TARGET_COL].drop(self.TARGET_COL)
         top = corr.abs().nlargest(k).index.tolist()
         print(f"    Top {k}: {top}")
         return top
