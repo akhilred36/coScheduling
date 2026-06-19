@@ -43,6 +43,11 @@ class FeatureSelection:
         print(f"  Target column     : {TARGET_COL}")
         print(f"  Feature columns   : {len(feature_cols)}")
 
+        always_include = "App A Isolated MPI Time"
+        if always_include in df.columns and always_include in feature_cols:
+            feature_cols.remove(always_include)
+            print(f"  (Always including '{always_include}' separately)")
+
         # Normalize features
         X_raw = df[feature_cols].values
         y = df[TARGET_COL].values
@@ -61,6 +66,11 @@ class FeatureSelection:
             "Lasso": self._select_by_lasso(X_scaled, y, feature_cols, k, random_state),
             "RFE_Ridge": self._select_by_rfe(X_scaled, y, feature_cols, k),
         }
+
+        if always_include in df.columns:
+            for method, features in all_selections.items():
+                if always_include not in features:
+                    features.append(always_include)
 
         self.all_selections = all_selections
 
