@@ -67,7 +67,7 @@ class CoSchedulingRunsParser:
             - "App Time Average": Average AppTime across all tasks (seconds)
             - "MPI Time Average": Average MPITime across all tasks (seconds)
             - "Total Messages Sent": Sum of all messages sent
-            - "Total Bytes": Sum of all total_bytes from aggregate_sent_df
+            - "Total Bytes Sent": Sum of all total_bytes from aggregate_sent_df
             
         Raises:
             ValueError: If any subdirectory fails to parse correctly.
@@ -169,7 +169,7 @@ class CoSchedulingRunsParser:
             else:
                 total_bytes_list.append(0)
         
-        df["Total Bytes"] = total_bytes_list
+        df["Total Bytes Sent"] = total_bytes_list
         
         return df
     
@@ -201,8 +201,8 @@ class CoSchedulingRunsParser:
             - "App B MPI Time Average": Average MPITime across all tasks for App B (seconds)
             - "App A Total Messages Sent": Sum of all messages sent for App A
             - "App B Total Messages Sent": Sum of all messages sent for App B
-            - "App A Total Bytes": Sum of total_bytes for App A
-            - "App B Total Bytes": Sum of total_bytes for App B
+            - "App A Total Bytes Sent": Sum of total_bytes for App A
+            - "App B Total Bytes Sent": Sum of total_bytes for App B
             
         Raises:
             ValueError: If any subdirectory fails to parse correctly.
@@ -344,8 +344,8 @@ class CoSchedulingRunsParser:
                     "App B MPI Time Average": app_b_metrics.mpi_time_average,
                     "App A Total Messages Sent": app_a_metrics.total_messages_sent,
                     "App B Total Messages Sent": app_b_metrics.total_messages_sent,
-                    "App A Total Bytes": app_a_total_bytes,
-                    "App B Total Bytes": app_b_total_bytes
+                    "App A Total Bytes Sent": app_a_total_bytes,
+                    "App B Total Bytes Sent": app_b_total_bytes
                 })
                 parsed_subdirs += 1
             else:
@@ -393,7 +393,7 @@ class CoSchedulingRunsParser:
             - "App Time Average": Average AppTime across all tasks (seconds)
             - "MPI Time Average": Average MPITime across all tasks (seconds)
             - "Total Messages Sent": Sum of all messages sent
-            - "Total Bytes": Sum of all total_bytes from aggregate_sent_df
+            - "Total Bytes Sent": Sum of all total_bytes from aggregate_sent_df
             
         Raises:
             ValueError: If any subdirectory fails to parse correctly.
@@ -491,7 +491,7 @@ class CoSchedulingRunsParser:
                 "App Time Average": app_time_avg,
                 "MPI Time Average": mpi_time_avg,
                 "Total Messages Sent": total_messages_sent,
-                "Total Bytes": total_bytes
+                "Total Bytes Sent": total_bytes
             })
             parsed_subdirs += 1
         
