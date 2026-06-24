@@ -21,17 +21,17 @@ num_cpus = 896
 num_nodes = 8
 mem = "240G"
 walltime = "24:00:00"
-ntasks_per_node = 56
+ntasks_per_node = 112
 mail_user = "aalasand1@unm.edu"
 
 for i in range(10):
     experiment_name = f"rate_limits_{i}"
-    
+
     exp_data_dir = os.path.join(data_dir, experiment_name)
     os.makedirs(exp_data_dir)
-    
+
     slurm_script_path = os.path.join(slurm_scripts_dir, f"{experiment_name}.slurm")
-    
+
     slurm_content = f"""#!/bin/bash
 #SBATCH --job-name {experiment_name}
 #SBATCH --mail-user {mail_user}
@@ -55,10 +55,10 @@ export DATA_DIR={exp_data_dir}
 srun --exclusive -n 448 --mem 119G --nodes 8 --ntasks-per-node 56 --distribution=block:block --mpibind=on,v {base_repo_path}/build/map_bandwidths -o $DATA_DIR/bandwidths.csv
 srun --exclusive -n 448 --mem 119G --nodes 8 --ntasks-per-node 56 --distribution=block:block --mpibind=on,v {base_repo_path}/build/map_rate_limits -o $DATA_DIR/rate_limits.csv
 """
-    
+
     with open(slurm_script_path, "w") as f:
         f.write(slurm_content)
-    
+
     print(f"Created {slurm_script_path}")
 
 print("\nAll SLURM scripts created successfully!")
