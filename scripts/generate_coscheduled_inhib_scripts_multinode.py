@@ -35,7 +35,7 @@ def load_json_config(filepath):
 def generate_experiment_name(app_name, inhib_args, r):
     """
     Generate experiment name in format:
-    1_<app_name>_inhib_<m_value>_<w_value>_<i_value>_<c_value>_<s_value>_<r>
+    <num_nodes>_<app_name>_inhib_<m_value>_<w_value>_<i_value>_<c_value>_<s_value>_<r>
     Only values are used, not argument keys.
     """
     inhib_params = []
@@ -43,7 +43,7 @@ def generate_experiment_name(app_name, inhib_args, r):
         inhib_params.append(str(value))
 
     params_str = "_".join(inhib_params)
-    return f"1_{app_name}_inhib_{params_str}_{r}"
+    return f"{NUM_NODES}_{app_name}_inhib_{params_str}_{r}"
 
 def generate_slurm_script(experiment_name, data_dir, inhib_exec, inhib_args_str,
                           app_exec, app_args_str, mpip_prof_path):
