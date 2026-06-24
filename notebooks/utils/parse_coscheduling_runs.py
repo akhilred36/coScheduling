@@ -46,7 +46,7 @@ class CoSchedulingRunsParser:
     
     def parse_isolated(self, directory: Union[str, Path], progress=True) -> pd.DataFrame:
         """
-        Parse an isolated experiment directory and extract metrics.
+        Parse an isolated experiment directory and extract metrics including total_bytes.
         
         The directory structure is expected to be:
         <directory>/
@@ -67,6 +67,7 @@ class CoSchedulingRunsParser:
             - "App Time Average": Average AppTime across all tasks (seconds)
             - "MPI Time Average": Average MPITime across all tasks (seconds)
             - "Total Messages Sent": Sum of all messages sent
+            - "Total Bytes": Sum of all total_bytes from aggregate_sent_df
             
         Raises:
             ValueError: If any subdirectory fails to parse correctly.
@@ -127,8 +128,10 @@ class CoSchedulingRunsParser:
                 continue
             
             total_messages_sent = 0
+            total_bytes = 0
             if parser.aggregate_sent_df is not None:
                 total_messages_sent = parser.aggregate_sent_df['count'].sum()
+                total_bytes = parser.aggregate_sent_df['total_bytes'].sum()
             
             metrics = RunMetrics(
                 app=file_info['app'],
@@ -158,11 +161,21 @@ class CoSchedulingRunsParser:
             "Total Messages Sent": [r.total_messages_sent for r in self._runs]
         })
         
+        total_bytes_list = []
+        for file_info in collected_files:
+            parser = MPIPParser(file_info['mpiP_file'])
+            if parser.aggregate_sent_df is not None:
+                total_bytes_list.append(parser.aggregate_sent_df['total_bytes'].sum())
+            else:
+                total_bytes_list.append(0)
+        
+        df["Total Bytes"] = total_bytes_list
+        
         return df
     
     def parse_coscheduled(self, directory: Union[str, Path], progress=True) -> pd.DataFrame:
         """
-        Parse a coscheduled experiment directory and extract metrics for paired applications.
+        Parse a coscheduled experiment directory and extract metrics for paired applications including total_bytes.
         
         The directory structure is expected to be:
         <directory>/
@@ -188,6 +201,8 @@ class CoSchedulingRunsParser:
             - "App B MPI Time Average": Average MPITime across all tasks for App B (seconds)
             - "App A Total Messages Sent": Sum of all messages sent for App A
             - "App B Total Messages Sent": Sum of all messages sent for App B
+            - "App A Total Bytes": Sum of total_bytes for App A
+            - "App B Total Bytes": Sum of total_bytes for App B
             
         Raises:
             ValueError: If any subdirectory fails to parse correctly.
@@ -253,6 +268,8 @@ class CoSchedulingRunsParser:
         for file_info in tqdm(collected_files, desc="Phase 2: Parsing files", disable=not progress):
             app_a_metrics = None
             app_b_metrics = None
+            app_a_total_bytes = 0
+            app_b_total_bytes = 0
             parse_errors = []
             
             for mpiP_file in file_info['mpiP_files']:
@@ -284,8 +301,10 @@ class CoSchedulingRunsParser:
                     continue
                 
                 total_messages_sent = 0
+                total_bytes = 0
                 if parser.aggregate_sent_df is not None:
                     total_messages_sent = int(parser.aggregate_sent_df['count'].sum())
+                    total_bytes = parser.aggregate_sent_df['total_bytes'].sum()
                 
                 metrics = RunMetrics(
                     app=app_name,
@@ -303,6 +322,11 @@ class CoSchedulingRunsParser:
                         app_b_metrics = metrics
                 elif app_name == file_info['app_b_name']:
                     app_b_metrics = metrics
+                
+                if app_name == file_info['app_a_name']:
+                    app_a_total_bytes = total_bytes
+                elif app_name == file_info['app_b_name']:
+                    app_b_total_bytes = total_bytes
             
             if parse_errors:
                 failed_subdirs.append(f"{file_info['subdir_name']}: {'; '.join(parse_errors)}")
@@ -319,7 +343,9 @@ class CoSchedulingRunsParser:
                     "App A MPI Time Average": app_a_metrics.mpi_time_average,
                     "App B MPI Time Average": app_b_metrics.mpi_time_average,
                     "App A Total Messages Sent": app_a_metrics.total_messages_sent,
-                    "App B Total Messages Sent": app_b_metrics.total_messages_sent
+                    "App B Total Messages Sent": app_b_metrics.total_messages_sent,
+                    "App A Total Bytes": app_a_total_bytes,
+                    "App B Total Bytes": app_b_total_bytes
                 })
                 parsed_subdirs += 1
             else:
@@ -343,7 +369,7 @@ class CoSchedulingRunsParser:
     
     def parse_inhibitor_coscheduled(self, directory: Union[str, Path], progress=True) -> pd.DataFrame:
         """
-        Parse an inhibitor coscheduled experiment directory and extract metrics.
+        Parse an inhibitor coscheduled experiment directory and extract metrics including total_bytes.
         
         The directory structure is expected to be:
         <directory>/
@@ -367,6 +393,7 @@ class CoSchedulingRunsParser:
             - "App Time Average": Average AppTime across all tasks (seconds)
             - "MPI Time Average": Average MPITime across all tasks (seconds)
             - "Total Messages Sent": Sum of all messages sent
+            - "Total Bytes": Sum of all total_bytes from aggregate_sent_df
             
         Raises:
             ValueError: If any subdirectory fails to parse correctly.
@@ -447,8 +474,10 @@ class CoSchedulingRunsParser:
             
             # Extract total messages sent from aggregate sent statistics
             total_messages_sent = 0
+            total_bytes = 0
             if parser.aggregate_sent_df is not None:
                 total_messages_sent = parser.aggregate_sent_df['count'].sum()
+                total_bytes = parser.aggregate_sent_df['total_bytes'].sum()
             
             # Store metrics with inhibitor info
             self._runs.append({
@@ -461,7 +490,8 @@ class CoSchedulingRunsParser:
                 "Run Iteration": file_info['run_iteration'],
                 "App Time Average": app_time_avg,
                 "MPI Time Average": mpi_time_avg,
-                "Total Messages Sent": total_messages_sent
+                "Total Messages Sent": total_messages_sent,
+                "Total Bytes": total_bytes
             })
             parsed_subdirs += 1
         
