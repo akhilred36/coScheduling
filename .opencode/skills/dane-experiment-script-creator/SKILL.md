@@ -1,9 +1,6 @@
 ---
 name: dane-experiment-script-creator
 description: Use this skill when the user needs to create experiment scripts to run on the Dane HPC system
-modeSlugs:
-  - architect
-  - code
 ---
 
 # Dane Experiment Script Creator
