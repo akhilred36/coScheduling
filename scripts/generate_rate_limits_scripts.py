@@ -17,11 +17,12 @@ os.makedirs(data_dir)
 slurm_scripts_dir = os.path.join(timestamp_dir, "slurm_scripts")
 os.makedirs(slurm_scripts_dir)
 
-num_cpus = 896
-num_nodes = 8
+num_cpus = 8
+num_nodes = 2
 mem = "240G"
-walltime = "24:00:00"
-ntasks_per_node = 112
+walltime = "2:00:00"
+ntasks_per_node = 4
+ntasks_per_socket = 2
 mail_user = "aalasand1@unm.edu"
 
 for i in range(10):
@@ -40,11 +41,14 @@ for i in range(10):
 #SBATCH --error {experiment_name}.err
 #SBATCH --ntasks {num_cpus}
 #SBATCH --ntasks-per-node {ntasks_per_node}
+#SBATCH --ntasks-per-socket {ntasks_per_socket}
 #SBATCH --nodes {num_nodes}
 #SBATCH --mem {mem}
 #SBATCH --time {walltime}
 #SBATCH --partition pbatch
-#SBATCH --distribution block:block
+#SBATCH --requeue
+#SBATCH --exclusive
+#SBATCH --distribution block:cyclic
 
 module load gcc/10
 module load openmpi
@@ -52,8 +56,8 @@ module load cmake
 
 export DATA_DIR={exp_data_dir}
 
-srun --exclusive -n 448 --mem 119G --nodes 8 --ntasks-per-node 56 --distribution=block:block --mpibind=on,v {base_repo_path}/build/map_bandwidths -o $DATA_DIR/bandwidths.csv
-srun --exclusive -n 448 --mem 119G --nodes 8 --ntasks-per-node 56 --distribution=block:block --mpibind=on,v {base_repo_path}/build/map_rate_limits -o $DATA_DIR/rate_limits.csv
+srun --exclusive -n {num_cpus} --mem 119G --nodes {num_nodes} --ntasks-per-node {ntasks_per_node} --mpibind=on,v {base_repo_path}/build/map_bandwidths -o $DATA_DIR/bandwidths.csv
+srun --exclusive -n {num_cpus} --mem 119G --nodes {num_nodes} --ntasks-per-node {ntasks_per_node} --mpibind=on,v {base_repo_path}/build/map_rate_limits -o $DATA_DIR/rate_limits.csv
 """
 
     with open(slurm_script_path, "w") as f:
