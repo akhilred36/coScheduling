@@ -18,3 +18,4 @@ apps/tric/*.bin
 run_data/*
 apps/miniFE/kokkos/src/*.yaml
 **/*.mpiP
+rate_limit_data/*
