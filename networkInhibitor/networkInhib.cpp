@@ -4,6 +4,8 @@
 #include <chrono>
 #include <climits>
 #include <cmath>
+#include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <memory>
 #include <thread>
@@ -21,6 +23,7 @@ unsigned long msgSize;
 float commSparsity;
 char commMode;
 unsigned long iters;
+char* outputFile = nullptr;
 
 // One send buffer per rank is sufficient: MPI_Isend reads sendBuffer into its
 // internal transport immediately, so all sends can safely share one buffer.
@@ -207,7 +210,7 @@ int main(int argc, char** argv)
   iters = ITERS;
 
   int opt;
-  while ((opt = getopt(argc, argv, "m:w:s:c:i:")) != -1)
+  while ((opt = getopt(argc, argv, "m:w:s:c:i:o:")) != -1)
   {
     switch (opt)
     {
@@ -246,12 +249,15 @@ int main(int argc, char** argv)
           iters = (raw == -1) ? ULONG_MAX : (unsigned long)raw;
         }
         break;
+      case 'o':
+        outputFile = optarg;
+        break;
       default:
         if (mpiRank == 0)
           cerr << "Usage: " << argv[0]
                << " -m <message size (bytes)> -w <wait time (us)> -s "
                   "<communication sparsity (0<=s<=1)> -c <mode: d|r> "
-                  "-i <iterations (-1 for infinite)>"
+                  "-i <iterations (-1 for infinite)> -o <output json file>"
                << endl;
         MPI_Finalize();
         return -1;
@@ -288,13 +294,67 @@ int main(int argc, char** argv)
   sendReqs = new MPI_Request[numProcs];
   recvReqs = new MPI_Request[numProcs];
 
+  auto startTime = std::chrono::high_resolution_clock::now();
+
   inhib();
+
+  auto endTime = std::chrono::high_resolution_clock::now();
 
   delete[] sendBuffer;
   delete[] recvBuffer;
   // FIX #6: Use delete[] (not scalar delete) for array-allocated pointers.
   delete[] sendReqs;
   delete[] recvReqs;
+
+  if (mpiRank == 0)
+  {
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
+                        endTime - startTime)
+                        .count();
+    double timeSeconds = duration / 1e6;
+
+    int targetsPerProcess = (int)round(commSparsity * (numProcs - 1));
+
+    double totalBytesPerIter =
+        (double)numProcs * (double)targetsPerProcess * msgSize * 2.0;
+
+    double totalIterations =
+        (iters == ULONG_MAX) ? 0.0 : (double)iters;
+    double totalBytes = totalBytesPerIter * totalIterations;
+
+    double effectiveBandwidth = (timeSeconds > 0.0)
+                                    ? (totalBytes / timeSeconds) / (1e9)
+                                    : 0.0;
+
+    cout << "------------------------------------------------------------\n";
+    cout << "Results:\n";
+    cout << "\tTime (us): " << duration
+         << "\n\tEffective Bandwidth (GB/s): " << std::fixed << std::setprecision(
+                 3)
+         << effectiveBandwidth << "\n";
+    cout << "------------------------------------------------------------\n";
+
+    if (outputFile != nullptr)
+    {
+      std::ofstream outFile(outputFile);
+      if (outFile.is_open())
+      {
+        long iterPrint = (iters == ULONG_MAX) ? -1L : (long)iters;
+
+        outFile << "{\n";
+        outFile << "  \"numRanks\": " << numProcs << ",\n";
+        outFile << "  \"msgSize\": " << msgSize << ",\n";
+        outFile << "  \"waitTime\": " << waitTime << ",\n";
+        outFile << "  \"commSparsity\": " << commSparsity << ",\n";
+        outFile << "  \"commMode\": \"" << commMode << "\",\n";
+        outFile << "  \"numIterations\": " << iterPrint << ",\n";
+        outFile << "  \"effectiveBandwidthGBps\": " << std::fixed
+                << std::setprecision(3) << effectiveBandwidth << "\n";
+        outFile << "}\n";
+        outFile.close();
+      }
+    }
+  }
 
   MPI_Finalize();
   return 0;
