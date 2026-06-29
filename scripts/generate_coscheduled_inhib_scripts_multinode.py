@@ -9,6 +9,7 @@ import os
 import itertools
 import csv
 from datetime import datetime
+from math import ceil
 
 # Constants
 WORKSPACE_PATH = "/g/g90/alasandagutt1/repos/coScheduling/"
@@ -48,7 +49,7 @@ def get_max_runtime(app_name, csv_path):
             if row["App"] == app_name:
                 max_runtime = float(row["App Time Average Mean"])
                 break
-    return max_runtime
+    return ceil(max_runtime)
 
 def generate_experiment_name(app_name, inhib_args, r):
     """
@@ -64,7 +65,7 @@ def generate_experiment_name(app_name, inhib_args, r):
     return f"{NUM_NODES}_{app_name}_inhib_{params_str}_{r}"
 
 def generate_slurm_script(experiment_name, data_dir, inhib_exec, inhib_args_str,
-                          app_exec, app_args_str, mpip_prof_path, use_job_array=False, array_id=0):
+                          app_exec, app_args_str, use_job_array=False, array_id=0):
     """
     Generate the content of a SLURM script for the experiment.
     """
@@ -73,7 +74,9 @@ def generate_slurm_script(experiment_name, data_dir, inhib_exec, inhib_args_str,
 
     data_dir = data_dir[:-2] # Strip out the '_0'
     data_dir += f"_{array_task_id}"
-    
+
+    mpip_prof_path = f"{data_dir}/mpip_profiles"
+
     slurm_content = f"""#!/bin/bash
 #SBATCH --job-name {experiment_name}
 #SBATCH --mail-user {MAIL_USER}
@@ -105,8 +108,8 @@ time srun --exclusive -n {(NUM_CPUS*NUM_NODES) // 2} --mem 119G --nodes {NUM_NOD
 # Run the application with MPIP profiling in foreground
 time srun --exclusive -n {(NUM_CPUS*NUM_NODES) // 2} --mem 119G --nodes {NUM_NODES} --ntasks-per-node {NUM_CPUS // 2} --distribution=block:block --mpibind=on,v env LD_PRELOAD="{NETWORK_INHIBITOR_EXEC}" MPIP="{MPIP_FLAGS} {mpip_prof_path}" {app_exec} {app_args_str} > {data_dir}/app_output.log 2>&1
 
-# Cancel the job to kill the background inhibitor process
-scancel $SLURM_JOB_ID
+# wait for completion
+wait
 """
     return slurm_content
 
@@ -205,7 +208,6 @@ def main():
                         inhib_args_str=inhib_args_str,
                         app_exec=app_paths[app_name],
                         app_args_str=app_args_str,
-                        mpip_prof_path=mpip_prof_path,
                         use_job_array=True,
                         array_id=r
                     )
