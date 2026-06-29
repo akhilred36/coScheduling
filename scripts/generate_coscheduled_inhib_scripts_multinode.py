@@ -7,6 +7,7 @@ with all available applications on the Dane HPC system.
 import json
 import os
 import itertools
+import csv
 from datetime import datetime
 
 # Constants
@@ -23,6 +24,9 @@ SPACK_SETUP_ENV = "/g/g90/alasandagutt1/repos/spack/share/spack/setup-env.sh"
 NETWORK_INHIBITOR_EXEC = "/g/g90/alasandagutt1/spack_envs/beatnik/.spack-env/view/lib/libmpiP.so"
 MPIP_FLAGS = "-f"
 
+# Path to isolated run timing data CSV file
+DATA_ISOLATED_AGG_CSV = "processedData/data_isolated_agg.csv"
+
 # Paths to config files
 CONFIG_APPS = "run_configs/8_nodes.json"
 CONFIG_INHIB = "run_configs/8_nodes_inhib.json"
@@ -31,6 +35,20 @@ def load_json_config(filepath):
     """Load and parse a JSON configuration file."""
     with open(filepath, 'r') as f:
         return json.load(f)
+
+def get_max_runtime(app_name, csv_path):
+    """
+    Read the isolated run timing CSV and return the App Time Average Mean
+    for the specified app name.
+    """
+    max_runtime = 0
+    with open(csv_path, 'r') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            if row["App"] == app_name:
+                max_runtime = float(row["App Time Average Mean"])
+                break
+    return max_runtime
 
 def generate_experiment_name(app_name, inhib_args, r):
     """
@@ -75,7 +93,7 @@ source {SPACK_SETUP_ENV} && spack env activate {SPACK_ENV_PATH}
 mkdir -p {mpip_prof_path}
 
 # Run network inhibitor in background (runs forever until killed)
-srun --exclusive -n {(NUM_CPUS*NUM_NODES) // 2} --mem 119G --nodes {NUM_NODES} --ntasks-per-node {NUM_CPUS // 2} --distribution=block:block --mpibind=on,v  env LD_PRELOAD="{NETWORK_INHIBITOR_EXEC}" MPIP="{MPIP_FLAGS} {mpip_prof_path}" {inhib_exec} {inhib_args_str} > {data_dir}/inhib_output.log 2>&1 &
+time srun --exclusive -n {(NUM_CPUS*NUM_NODES) // 2} --mem 119G --nodes {NUM_NODES} --ntasks-per-node {NUM_CPUS // 2} --distribution=block:block --mpibind=on,v  env LD_PRELOAD="{NETWORK_INHIBITOR_EXEC}" MPIP="{MPIP_FLAGS} {mpip_prof_path}" {inhib_exec} {inhib_args_str} > {data_dir}/inhib_output.log 2>&1 &
 
 # Run the application with MPIP profiling in foreground
 time srun --exclusive -n {(NUM_CPUS*NUM_NODES) // 2} --mem 119G --nodes {NUM_NODES} --ntasks-per-node {NUM_CPUS // 2} --distribution=block:block --mpibind=on,v env LD_PRELOAD="{NETWORK_INHIBITOR_EXEC}" MPIP="{MPIP_FLAGS} {mpip_prof_path}" {app_exec} {app_args_str} > {data_dir}/app_output.log 2>&1
@@ -94,6 +112,11 @@ def main():
 
     apps = apps_config["apps"]
     inhib = inhib_config["inhib"]
+
+    # Load max runtime for each app from isolated timing data
+    app_max_runtime = {}
+    for app_name in apps.keys():
+        app_max_runtime[app_name] = get_max_runtime(app_name, DATA_ISOLATED_AGG_CSV)
 
     # Get inhibitor executable path and name
     inhib_path = inhib["path"]
@@ -145,6 +168,8 @@ def main():
 
                 # Build inhibitor arguments string
                 inhib_args_str = " ".join([f"{key} {value}" for key, value in inhib_args_dict.items()])
+                max_runtime = app_max_runtime[app_name]
+                inhib_args_str += f" -r {max_runtime}"
 
                 # Build app arguments string
                 app_args_list = []
