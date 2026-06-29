@@ -71,7 +71,8 @@ def generate_slurm_script(experiment_name, data_dir, inhib_exec, inhib_args_str,
     array_directive = "#SBATCH --array=0-3" if use_job_array else ""
     array_task_id = "$SLURM_ARRAY_TASK_ID" if use_job_array else str(array_id)
 
-    data_dir += str(array_task_id)
+    data_dir = data_dir[:-2] # Strip out the '_0'
+    data_dir += f"_{array_task_id}"
     
     slurm_content = f"""#!/bin/bash
 #SBATCH --job-name {experiment_name}
@@ -194,25 +195,26 @@ def main():
                 mpip_prof_path = os.path.join(experiment_data_dir, "mpip_profiles")
                 os.makedirs(mpip_prof_path)
 
-                # Generate SLURM script with job array
-                slurm_script_path = os.path.join(slurm_scripts_dir, f"{experiment_name}.slurm")
-                slurm_content = generate_slurm_script(
-                    experiment_name=experiment_name,
-                    data_dir=experiment_data_dir,
-                    inhib_exec=inhib_full_path,
-                    inhib_args_str=inhib_args_str,
-                    app_exec=app_paths[app_name],
-                    app_args_str=app_args_str,
-                    mpip_prof_path=mpip_prof_path,
-                    use_job_array=True,
-                    array_id=r
-                )
+                # Generate SLURM script with job array only for r = 0
+                if (r == 0):
+                    slurm_script_path = os.path.join(slurm_scripts_dir, f"{experiment_name}.slurm")
+                    slurm_content = generate_slurm_script(
+                        experiment_name=experiment_name,
+                        data_dir=experiment_data_dir,
+                        inhib_exec=inhib_full_path,
+                        inhib_args_str=inhib_args_str,
+                        app_exec=app_paths[app_name],
+                        app_args_str=app_args_str,
+                        mpip_prof_path=mpip_prof_path,
+                        use_job_array=True,
+                        array_id=r
+                    )
 
-                with open(slurm_script_path, 'w') as f:
-                    f.write(slurm_content)
+                    with open(slurm_script_path, 'w') as f:
+                        f.write(slurm_content)
 
-                scripts_generated += 1
-                print(f"Generated: {experiment_name}.slurm")
+                    scripts_generated += 1
+                    print(f"Generated: {experiment_name}.slurm")
 
     print(f"\nTotal scripts generated: {scripts_generated}")
     print(f"Experiments directory: {EXPERIMENTS_DIR}")
