@@ -64,10 +64,15 @@ def generate_experiment_name(app_name, inhib_args, r):
     return f"{NUM_NODES}_{app_name}_inhib_{params_str}_{r}"
 
 def generate_slurm_script(experiment_name, data_dir, inhib_exec, inhib_args_str,
-                          app_exec, app_args_str, mpip_prof_path):
+                          app_exec, app_args_str, mpip_prof_path, use_job_array=False, array_id=0):
     """
     Generate the content of a SLURM script for the experiment.
     """
+    array_directive = "#SBATCH --array=0-3" if use_job_array else ""
+    array_task_id = "$SLURM_ARRAY_TASK_ID" if use_job_array else str(array_id)
+
+    data_dir += str(array_task_id)
+    
     slurm_content = f"""#!/bin/bash
 #SBATCH --job-name {experiment_name}
 #SBATCH --mail-user {MAIL_USER}
@@ -82,6 +87,7 @@ def generate_slurm_script(experiment_name, data_dir, inhib_exec, inhib_args_str,
 #SBATCH --time {WALLTIME}
 #SBATCH --partition pbatch
 #SBATCH --distribution block:cyclic
+{array_directive}
 
 # Load modules
 module load {' '.join(MODULES)}
@@ -188,7 +194,7 @@ def main():
                 mpip_prof_path = os.path.join(experiment_data_dir, "mpip_profiles")
                 os.makedirs(mpip_prof_path)
 
-                # Generate SLURM script
+                # Generate SLURM script with job array
                 slurm_script_path = os.path.join(slurm_scripts_dir, f"{experiment_name}.slurm")
                 slurm_content = generate_slurm_script(
                     experiment_name=experiment_name,
@@ -197,7 +203,9 @@ def main():
                     inhib_args_str=inhib_args_str,
                     app_exec=app_paths[app_name],
                     app_args_str=app_args_str,
-                    mpip_prof_path=mpip_prof_path
+                    mpip_prof_path=mpip_prof_path,
+                    use_job_array=True,
+                    array_id=r
                 )
 
                 with open(slurm_script_path, 'w') as f:
