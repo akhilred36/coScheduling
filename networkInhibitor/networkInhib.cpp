@@ -25,26 +25,25 @@ char commMode;
 unsigned long iters;
 char* outputFile = nullptr;
 
-// One send buffer per rank is sufficient: MPI_Isend reads sendBuffer into its
-// internal transport immediately, so all sends can safely share one buffer.
-//
-// One recv buffer per rank is NOT sufficient: all concurrent MPI_Irecv calls
-// must have non-overlapping destination regions or they will race to overwrite
-// the same memory. We allocate a contiguous block of (numProcs-1) * msgSize
-// bytes and give each receive its own slot indexed by receive order.
+// ---- New globals for runtime limit ----
+double maxRuntimeSec = 0.0;
+bool runtimeLimitActive = false;
+unsigned long actualIters = 0;  // counts actual completed iterations
+std::chrono::high_resolution_clock::time_point
+    g_startTime;  // used both for limit and final measurement
+// -------------------------------------
+
+// Buffers and request arrays (unchanged)
 char* sendBuffer;
 char* recvBuffer;  // size: (numProcs - 1) * msgSize; indexed by recv slot
-
 MPI_Request* sendReqs;
 MPI_Request* recvReqs;
 
-// For deterministic mode: stores which processes each process sends to.
-// Index [r] gives the list of destinations that rank r sends to.
+// Deterministic communication targets
 vector<vector<int>> deterministicTargets;
 
 void srand_lcg(uint64_t s) { seed = s; }
 
-// Returns a pseudo-random number in [0, 2^31 - 1]
 uint32_t rand_lcg(void)
 {
   seed = seed * 6364136223846793005ULL + 1442695040888963407ULL;
@@ -69,7 +68,6 @@ void generateDeterministicTargets()
     uint64_t hashSeed = seed + sender;
     srand_lcg(hashSeed);
 
-    // Build candidate list excluding self
     vector<int> available;
     for (int i = 0; i < numProcs; i++)
     {
@@ -99,13 +97,10 @@ void inhib()
     }
     else
     {
-      // Random mode: rank 0 generates the entire graph, packs it into a flat
-      // array, and broadcasts it to all other ranks via MPI_Bcast.
+      // Random mode: rank 0 generates the graph and broadcasts it
       int targetsPerProcess = (int)round(commSparsity * (numProcs - 1));
       sendTargets.resize(numProcs);
 
-      // Flat table: row `sender` occupies [sender*targetsPerProcess,
-      // (sender+1)*targetsPerProcess). Unused slots are -1.
       vector<int> flatTable(numProcs * targetsPerProcess, -1);
 
       if (mpiRank == 0)
@@ -130,7 +125,6 @@ void inhib()
       MPI_Bcast(flatTable.data(), numProcs * targetsPerProcess, MPI_INT, 0,
                 MPI_COMM_WORLD);
 
-      // Unpack into sendTargets
       for (int sender = 0; sender < numProcs; sender++)
       {
         for (int t = 0; t < targetsPerProcess; t++)
@@ -143,9 +137,6 @@ void inhib()
 
     // --- Determine this rank's send destinations and receive sources ---
     const vector<int>& myDests = sendTargets[mpiRank];
-
-    // Build list of ranks that will send to us (i.e., ranks r where mpiRank is
-    // in sendTargets[r]).
     vector<int> mySources;
     for (int r = 0; r < numProcs; r++)
     {
@@ -181,7 +172,7 @@ void inhib()
                 &sendReqs[s]);
     }
 
-    // Post non-blocking receives, each into its own slot of recvBuffer.
+    // Post non-blocking receives
     for (int r = 0; r < numRecvs; r++)
     {
       MPI_Irecv(recvBuffer + r * msgSize, msgSize, MPI_BYTE, mySources[r], 0,
@@ -194,6 +185,20 @@ void inhib()
     this_thread::sleep_for(chrono::microseconds(waitTime));
 
     MPI_Barrier(MPI_COMM_WORLD);
+
+    // Increment iteration counter *after* the iteration completes
+    ++actualIters;
+
+    // Runtime limit check (if active)
+    if (runtimeLimitActive)
+    {
+      auto now = std::chrono::high_resolution_clock::now();
+      std::chrono::duration<double> elapsed = now - g_startTime;
+      if (elapsed.count() >= maxRuntimeSec)
+      {
+        break;  // exit the loop cleanly
+      }
+    }
   }
 }
 
@@ -209,8 +214,12 @@ int main(int argc, char** argv)
   commMode = 'd';
   iters = ITERS;
 
+  // Flags for mutual exclusion
+  bool itersSet = false;
+  bool runtimeSet = false;
+
   int opt;
-  while ((opt = getopt(argc, argv, "m:w:s:c:i:o:")) != -1)
+  while ((opt = getopt(argc, argv, "m:w:s:c:i:o:r:")) != -1)
   {
     switch (opt)
     {
@@ -242,11 +251,21 @@ int main(int argc, char** argv)
         }
         break;
       case 'i':
-        // FIX #4: Accept -1 from the user as the infinite-loop sentinel and
-        // map it to ULONG_MAX, since iters is unsigned long.
+        itersSet = true;
         {
           long raw = atol(optarg);
           iters = (raw == -1) ? ULONG_MAX : (unsigned long)raw;
+        }
+        break;
+      case 'r':
+        runtimeSet = true;
+        maxRuntimeSec = atof(optarg);
+        if (maxRuntimeSec <= 0.0)
+        {
+          if (mpiRank == 0)
+            cerr << "Error: runtime must be > 0 seconds" << endl;
+          MPI_Finalize();
+          return -1;
         }
         break;
       case 'o':
@@ -257,11 +276,29 @@ int main(int argc, char** argv)
           cerr << "Usage: " << argv[0]
                << " -m <message size (bytes)> -w <wait time (us)> -s "
                   "<communication sparsity (0<=s<=1)> -c <mode: d|r> "
-                  "-i <iterations (-1 for infinite)> -o <output json file>"
-               << endl;
+                  "-i <iterations (-1 for infinite)> -r <max runtime (s)> "
+                  "-o <output json file>\n"
+               << "Note: -i and -r are mutually exclusive.\n";
         MPI_Finalize();
         return -1;
     }
+  }
+
+  // Enforce mutual exclusion between -i and -r
+  if (itersSet && runtimeSet)
+  {
+    if (mpiRank == 0)
+      cerr << "Error: -i and -r cannot be used together." << endl;
+    MPI_Finalize();
+    return -1;
+  }
+
+  // If runtime limit is active, set iterations to "infinite" and let the time
+  // check stop the loop
+  if (runtimeSet)
+  {
+    runtimeLimitActive = true;
+    iters = ULONG_MAX;
   }
 
   if (mpiRank == 0)
@@ -274,8 +311,9 @@ int main(int argc, char** argv)
          << "\n\tCommunication Sparsity: " << commSparsity
          << "\n\tCommunication Mode: "
          << (commMode == 'd' ? "Deterministic" : "Random")
-         << "\n\tIterations: " << (iters == ULONG_MAX ? -1L : (long)iters)
-         << "\n";
+         << "\n\tIterations: " << (iters == ULONG_MAX ? -1L : (long)iters);
+    if (runtimeLimitActive) cout << "\n\tMax Runtime (s): " << maxRuntimeSec;
+    cout << "\n";
     cout << "------------------------------------------------------------\n";
   }
 
@@ -284,17 +322,16 @@ int main(int argc, char** argv)
     generateDeterministicTargets();
   }
 
-  // One send buffer (msgSize bytes) and one recv buffer with a separate slot
-  // of msgSize bytes for each of the up to (numProcs-1) concurrent receives.
   sendBuffer = new char[msgSize];
   recvBuffer = new char[msgSize * (numProcs - 1)];
   fillArray(sendBuffer, msgSize);
 
-  // Initial allocation; inhib() will resize as needed.
   sendReqs = new MPI_Request[numProcs];
   recvReqs = new MPI_Request[numProcs];
 
-  auto startTime = std::chrono::high_resolution_clock::now();
+  // Start the clock (used for runtime limit and final timing)
+  g_startTime = std::chrono::high_resolution_clock::now();
+  actualIters = 0;  // reset counter
 
   inhib();
 
@@ -302,36 +339,33 @@ int main(int argc, char** argv)
 
   delete[] sendBuffer;
   delete[] recvBuffer;
-  // FIX #6: Use delete[] (not scalar delete) for array-allocated pointers.
   delete[] sendReqs;
   delete[] recvReqs;
 
   if (mpiRank == 0)
   {
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
-                        endTime - startTime)
+                        endTime - g_startTime)
                         .count();
     double timeSeconds = duration / 1e6;
 
     int targetsPerProcess = (int)round(commSparsity * (numProcs - 1));
-
     double totalBytesPerIter =
         (double)numProcs * (double)targetsPerProcess * msgSize * 2.0;
 
-    double totalIterations =
-        (iters == ULONG_MAX) ? 0.0 : (double)iters;
+    // Use actual completed iterations for bandwidth calculation
+    double totalIterations = (double)actualIters;
     double totalBytes = totalBytesPerIter * totalIterations;
 
-    double effectiveBandwidth = (timeSeconds > 0.0)
-                                    ? (totalBytes / timeSeconds) / (1e9)
-                                    : 0.0;
+    double effectiveBandwidth =
+        (timeSeconds > 0.0) ? (totalBytes / timeSeconds) / (1e9) : 0.0;
 
     cout << "------------------------------------------------------------\n";
     cout << "Results:\n";
+    cout << "\tCompleted iterations: " << actualIters << "\n";
     cout << "\tTime (us): " << duration
-         << "\n\tEffective Bandwidth (GB/s): " << std::fixed << std::setprecision(
-                 3)
-         << effectiveBandwidth << "\n";
+         << "\n\tEffective Bandwidth (GB/s): " << std::fixed
+         << std::setprecision(3) << effectiveBandwidth << "\n";
     cout << "------------------------------------------------------------\n";
 
     if (outputFile != nullptr)
@@ -348,6 +382,11 @@ int main(int argc, char** argv)
         outFile << "  \"commSparsity\": " << commSparsity << ",\n";
         outFile << "  \"commMode\": \"" << commMode << "\",\n";
         outFile << "  \"numIterations\": " << iterPrint << ",\n";
+        outFile << "  \"maxRuntimeSec\": "
+                << (runtimeLimitActive ? maxRuntimeSec : 0.0) << ",\n";
+        outFile << "  \"runtimeLimitUsed\": "
+                << (runtimeLimitActive ? "true" : "false") << ",\n";
+        outFile << "  \"completedIterations\": " << actualIters << ",\n";
         outFile << "  \"effectiveBandwidthGBps\": " << std::fixed
                 << std::setprecision(3) << effectiveBandwidth << "\n";
         outFile << "}\n";
