@@ -93,7 +93,7 @@ source {SPACK_SETUP_ENV} && spack env activate {SPACK_ENV_PATH}
 mkdir -p {mpip_prof_path}
 
 # Run network inhibitor in background (runs forever until killed)
-time srun --exclusive -n {(NUM_CPUS*NUM_NODES) // 2} --mem 119G --nodes {NUM_NODES} --ntasks-per-node {NUM_CPUS // 2} --distribution=block:block --mpibind=on,v  env LD_PRELOAD="{NETWORK_INHIBITOR_EXEC}" MPIP="{MPIP_FLAGS} {mpip_prof_path}" {inhib_exec} {inhib_args_str} > {data_dir}/inhib_output.log 2>&1 &
+time srun --exclusive -n {(NUM_CPUS*NUM_NODES) // 2} --mem 119G --nodes {NUM_NODES} --ntasks-per-node {NUM_CPUS // 2} --distribution=block:block --mpibind=on,v  env LD_PRELOAD="{NETWORK_INHIBITOR_EXEC}" MPIP="{MPIP_FLAGS} {mpip_prof_path}" {inhib_exec} {inhib_args_str} -o {data_dir}/inhib_stats.json > {data_dir}/inhib_output.log 2>&1 &
 
 # Run the application with MPIP profiling in foreground
 time srun --exclusive -n {(NUM_CPUS*NUM_NODES) // 2} --mem 119G --nodes {NUM_NODES} --ntasks-per-node {NUM_CPUS // 2} --distribution=block:block --mpibind=on,v env LD_PRELOAD="{NETWORK_INHIBITOR_EXEC}" MPIP="{MPIP_FLAGS} {mpip_prof_path}" {app_exec} {app_args_str} > {data_dir}/app_output.log 2>&1
