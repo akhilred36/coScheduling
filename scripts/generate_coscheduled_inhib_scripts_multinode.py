@@ -25,7 +25,7 @@ NETWORK_INHIBITOR_EXEC = "/g/g90/alasandagutt1/spack_envs/beatnik/.spack-env/vie
 MPIP_FLAGS = "-f"
 
 # Path to isolated run timing data CSV file
-DATA_ISOLATED_AGG_CSV = "processedData/data_isolated_agg.csv"
+DATA_ISOLATED_AGG_CSV = f"processed_data/data_isolated_agg.csv"
 
 # Paths to config files
 CONFIG_APPS = "run_configs/8_nodes.json"
