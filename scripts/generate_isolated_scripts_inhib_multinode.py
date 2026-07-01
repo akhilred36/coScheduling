@@ -18,7 +18,7 @@ walltime = "00:10:00"
 email = "aalasand1@unm.edu"
 num_cpus = 56
 mem = 240
-inhib_runtime = "3600" # in seconds # in seconds # in seconds # in seconds
+inhib_runtime = "360" # in seconds # in seconds # in seconds # in seconds
 
 # =============================================================================
 # Important variables, file paths, modules
@@ -79,11 +79,11 @@ inhib_combinations = list(itertools.product(*inhib_arg_values))
 # Step 6: Iterate through all inhib combinations
 for i, inhib_combo in enumerate(inhib_combinations):
     inhib_args_dict = dict(zip(inhib_arg_keys, inhib_combo))
-    
+
     # Generate experiment name
     params_str = "_".join([str(val) for val in inhib_combo])
     experiment_name = f"{num_nodes}_inhib_{params_str}"
-    
+
     # Step 6.1: Iterate through redundant runs
     for r in range(redundant_runs):
         # Create filenames and directories
