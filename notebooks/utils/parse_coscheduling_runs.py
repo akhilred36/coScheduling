@@ -685,3 +685,144 @@ class CoSchedulingRunsParser:
         df = pd.DataFrame(self._runs)
         
         return df
+    
+    def parse_inhibitor_isolated(self, directory: Union[str, Path], progress=True) -> pd.DataFrame:
+        """
+        Parse an inhibitor isolated experiment directory and extract inhibitor metrics only.
+        
+        The directory structure is expected to be:
+        <directory>/
+            <numNodes>_inhib_<Inhib Message Size>_<Inhib Wait Time (us)>_d_<Inhib Comm Sparsity>_<runIteration>/
+                mpip_profiles/
+                    <filename>.mpiP
+            ...
+        
+        Args:
+            directory: Path to the experiment data directory.
+            progress: Whether to show progress bars.
+            
+        Returns:
+            pandas DataFrame with columns:
+            - "Num Nodes": Number of nodes used
+            - "Inhib Message Size": Inhibitor message size
+            - "Inhib Wait Time (us)": Inhibitor wait time in microseconds
+            - "Inhib Comm Sparsity": Inhibitor communication sparsity
+            - "Run Iteration": Run iteration number
+            - "Inhib App Time Average": Average AppTime across all tasks for Inhibitor (seconds)
+            - "Inhib MPI Time Average": Average MPITime across all tasks for Inhibitor (seconds)
+            - "Inhib Total Messages Sent": Sum of all messages sent for Inhibitor
+            - "Inhib Total Bytes Sent": Sum of all total_bytes from aggregate_sent_df for Inhibitor
+            
+        Raises:
+            ValueError: If any subdirectory fails to parse correctly.
+        """
+        directory = Path(directory)
+        self.base_path = directory
+        self._runs = []
+        
+        total_subdirs = 0
+        parsed_subdirs = 0
+        failed_subdirs = []
+        collected_files = []
+        
+        for subdir in tqdm(directory.iterdir(), desc="Phase 1: Collecting files", disable=not progress):
+            if not subdir.is_dir():
+                continue
+            
+            total_subdirs += 1
+            
+            match = re.match(
+                r'^(\d+)_inhib_(\d+)_(\d+)_d_(\d+\.?\d*)_(\d+)$',
+                subdir.name
+            )
+            if not match:
+                failed_subdirs.append(f"{subdir.name}: failed to match directory pattern")
+                continue
+            
+            num_nodes = int(match.group(1))
+            inhib_message_size = int(match.group(2))
+            inhib_wait_time_us = int(match.group(3))
+            inhib_comm_sparsity = float(match.group(4))
+            run_iteration = int(match.group(5))
+            
+            mpip_profiles_dir = subdir / "mpip_profiles"
+            if not mpip_profiles_dir.exists():
+                failed_subdirs.append(f"{subdir.name}: mpip_profiles directory not found")
+                print(f"{subdir.name}: mpip_profiles directory not found")
+                continue
+            
+            mpiP_files = list(mpip_profiles_dir.glob("*.mpiP"))
+            if len(mpiP_files) != 1:
+                failed_subdirs.append(f"{subdir.name}: expected 1 .mpiP file, found {len(mpiP_files)}")
+                print(f"{subdir.name}: expected 1 .mpiP file, found {len(mpiP_files)}")
+                continue
+            
+            collected_files.append({
+                'subdir_name': subdir.name,
+                'mpiP_files': mpiP_files,
+                'num_nodes': num_nodes,
+                'inhib_message_size': inhib_message_size,
+                'inhib_wait_time_us': inhib_wait_time_us,
+                'inhib_comm_sparsity': inhib_comm_sparsity,
+                'run_iteration': run_iteration
+            })
+        
+        for file_info in tqdm(collected_files, desc="Phase 2: Parsing files", disable=not progress):
+            inhib_metrics = None
+            inhib_total_bytes = 0
+            parse_errors = []
+            
+            for mpiP_file in file_info['mpiP_files']:
+                parser = MPIPParser(mpiP_file)
+                
+                if parser.mpi_time_df is not None:
+                    inhib_app_time_avg = parser.mpi_time_df['app_time'].mean()
+                    inhib_mpi_time_avg = parser.mpi_time_df['mpi_time'].mean()
+                else:
+                    parse_errors.append(f"mpi_time_df is None for '{mpiP_file.name}'")
+                    continue
+                
+                inhib_total_messages_sent = 0
+                inhib_total_bytes = 0
+                if parser.aggregate_sent_df is not None:
+                    inhib_total_messages_sent = int(parser.aggregate_sent_df['count'].sum())
+                    inhib_total_bytes = parser.aggregate_sent_df['total_bytes'].sum()
+                
+                inhib_metrics = {
+                    'app_time_average': inhib_app_time_avg,
+                    'mpi_time_average': inhib_mpi_time_avg,
+                    'total_messages_sent': inhib_total_messages_sent
+                }
+                inhib_total_bytes = inhib_total_bytes
+            
+            if parse_errors:
+                failed_subdirs.append(f"{file_info['subdir_name']}: {'; '.join(parse_errors)}")
+                continue
+            
+            if inhib_metrics is not None:
+                self._runs.append({
+                    "Num Nodes": file_info['num_nodes'],
+                    "Inhib Message Size": file_info['inhib_message_size'],
+                    "Inhib Wait Time (us)": file_info['inhib_wait_time_us'],
+                    "Inhib Comm Sparsity": file_info['inhib_comm_sparsity'],
+                    "Run Iteration": file_info['run_iteration'],
+                    "Inhib App Time Average": inhib_metrics['app_time_average'],
+                    "Inhib MPI Time Average": inhib_metrics['mpi_time_average'],
+                    "Inhib Total Messages Sent": inhib_metrics['total_messages_sent'],
+                    "Inhib Total Bytes Sent": inhib_total_bytes
+                })
+                parsed_subdirs += 1
+            else:
+                failed_subdirs.append(f"{file_info['subdir_name']}: could not find metrics for inhibitor")
+                print(f"{file_info['subdir_name']}: could not find metrics for inhibitor")
+        
+        if failed_subdirs:
+            error_msg = f"Failed to parse {len(failed_subdirs)} out of {total_subdirs} subdirectories:\n"
+            for failure in failed_subdirs:
+                error_msg += f"  - {failure}\n"
+            print(error_msg)
+            # raise ValueError(error_msg)
+        
+        df = pd.DataFrame(self._runs)
+        
+        return df
