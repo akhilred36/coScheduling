@@ -680,7 +680,8 @@ class CoSchedulingRunsParser:
             error_msg = f"Failed to parse {len(failed_subdirs)} out of {total_subdirs} subdirectories:\n"
             for failure in failed_subdirs:
                 error_msg += f"  - {failure}\n"
-            raise ValueError(error_msg)
+            print(error_msg)
+            # raise ValueError(error_msg)
         
         df = pd.DataFrame(self._runs)
         
