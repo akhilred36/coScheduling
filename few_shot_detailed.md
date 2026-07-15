@@ -258,7 +258,7 @@ class PairSlowdownPredictor(nn.Module):
 
 **Purpose**: Takes two job signatures and their isolated features to predict pairwise slowdown.
 
-**Input**: 
+**Input**:
 - zA, zB: 64-dim job signatures (latent representations)
 - jobA_feat, jobB_feat: 4-dim isolated features (mpi_time, comm_frac, etc.)
 - Combined input: 64×2 + 4×2 = 136 dimensions
@@ -307,7 +307,7 @@ def build_job_tensor(job_id):
     slowdowns = np.zeros((max_inhibitors, 1), dtype=np.float32)
     mask = np.zeros(max_inhibitors, dtype=bool)
     mask[:n] = True  # Mark valid entries
-    
+
     # Normalize and convert to tensors
 ```
 
@@ -323,10 +323,10 @@ class PairDataset(Dataset):
     def __init__(self, pair_df, job_tensors):
         self.pair_df = pair_df
         self.job_tensors = job_tensors
-    
+
     def __len__(self):
         return len(self.pair_df)
-    
+
     def __getitem__(self, idx):
         # Returns all inputs needed for one pair prediction
         return {
@@ -447,14 +447,14 @@ patience_counter = 0
 for epoch in range(epochs):
     train_loss = train_epoch(...)
     val_loss, val_mae, val_mape, _, _ = eval_model(...)
-    
+
     if val_loss < best_val_loss:
         best_val_loss = val_loss
         best_model_state = deepcopy(model.state_dict())
         patience_counter = 0
     else:
         patience_counter += 1
-    
+
     if patience_counter >= 100:
         break  # Early stopping
 ```
@@ -527,29 +527,3 @@ In HPC environments, you can't experiment with all possible application combinat
 - These signatures capture the essential characteristics that determine interference behavior
 
 ---
-
-## Results Interpretation (from notebook output)
-
-**Training Set Performance**:
-- R² = 0.8147: Model explains 81.5% of variance in training data
-- MAE = 0.0407: Average error of ~4% slowdown
-- MAPE = 3.67%: Average percentage error of 3.67%
-
-**Test Set Performance (Unseen Jobs)**:
-- R² = -0.4402: Model performs worse than predicting the mean (struggles to generalize)
-- MAE = 0.1608: Average error of ~16% slowdown
-- MAPE = 13.71%: Average percentage error of 13.71%
-
-**Analysis**:
-- The model fits training data well but generalizes poorly to unseen jobs
-- This suggests the current approach may need:
-  - More training data (more jobs)
-  - Different architecture
-  - Better feature representation
-  - Data augmentation
-
-The breakdown shows:
-- **One unseen job**: MAE = 0.1536, MAPE = 12.92%
-- **Both jobs unseen**: MAE = 0.1859, MAPE = 16.46%
-
-Both cases show significant degradation compared to training, indicating the model hasn't learned fully transferable job signatures.
