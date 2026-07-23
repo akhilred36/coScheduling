@@ -10,7 +10,7 @@ import numpy as np
 
 class SlowdownDataset(Dataset):
     def __init__(self, data_path, train_apps, mode='train', val_split=0.0, test_split=0.0,
-                 eval_method='zero_shot', seed=42, known_apps=None):
+                 eval_method='zero_shot', seed=42, known_apps=None, train_pairs_only=False):
         """
         Args:
             data_path: Path to processed_data.npz
@@ -21,6 +21,7 @@ class SlowdownDataset(Dataset):
             eval_method: 'random_split', 'zero_shot', or 'one_known'
             seed: Random seed for reproducibility
             known_apps: List of known apps for one_known evaluation (optional)
+            train_pairs_only: If True, bypass eval_method filter and include only training-app pairs
         """
         self.mode = mode
         self.val_split = val_split
@@ -28,12 +29,14 @@ class SlowdownDataset(Dataset):
         self.eval_method = eval_method
         self.seed = seed
         self.known_apps = known_apps
+        self.train_pairs_only = train_pairs_only
         
       # Load data
         data = np.load(data_path, allow_pickle=True)
         self.job_ids = data['job_ids'].tolist()
         self.set_features = torch.from_numpy(data['set_features']).float()
         self.isolated_profiles = torch.from_numpy(data['isolated_profiles']).float()
+        self.isolated_profiles_raw = torch.from_numpy(data['isolated_profiles_raw']).float()
         self.pairs = torch.from_numpy(data['pairs']).float()
         
         # Build mapping from job_id to index
@@ -49,7 +52,14 @@ class SlowdownDataset(Dataset):
             self.known_indices = self.train_indices
         
         # Filter pairs based on mode and evaluation method
-        if self.eval_method == 'random_split':
+        # If train_pairs_only is True, always use training-app pairs regardless of eval_method
+        if self.train_pairs_only:
+            mask = torch.tensor([
+                idx_a in self.train_indices and idx_b in self.train_indices
+                for idx_a, idx_b, _, _ in self.pairs.tolist()
+            ])
+            self.filtered_pairs = self.pairs[mask]
+        elif self.eval_method == 'random_split':
             mask = torch.tensor([
                 idx_a in self.train_indices and idx_b in self.train_indices
                 for idx_a, idx_b, _, _ in self.pairs.tolist()
@@ -116,11 +126,19 @@ class SlowdownDataset(Dataset):
         set_b = self.set_features[idx_b]  # (N, 8)
         b_a = self.isolated_profiles[idx_a]  # (4,)
         b_b = self.isolated_profiles[idx_b]  # (4,)
+        b_a_raw = self.isolated_profiles_raw[idx_a]  # (4,)
+        b_b_raw = self.isolated_profiles_raw[idx_b]  # (4,)
+        app_a = self.job_ids[idx_a]
+        app_b = self.job_ids[idx_b]
         
         return {
             'set_A': set_a,
             'set_B': set_b,
             'b_A': b_a,
             'b_B': b_b,
+            'b_A_raw': b_a_raw,
+            'b_B_raw': b_b_raw,
+            'app_A': app_a,
+            'app_B': app_b,
             'y': torch.tensor(y, dtype=torch.float32)
         }

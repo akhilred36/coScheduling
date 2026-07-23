@@ -11,6 +11,8 @@ apps/tric/tric
 apps/miniVite/miniVite
 apps/miniFE/kokkos/src/miniFE.x
 apps/tric/generate_graph_mpi
+*.pyc
+*.pt
 
 # Data
 data/*
@@ -19,3 +21,4 @@ run_data/*
 apps/miniFE/kokkos/src/*.yaml
 **/*.mpiP
 rate_limit_data/*
+*.pt

@@ -6,6 +6,11 @@ A few-shot learning system for predicting job slowdown in HPC environments using
 
 This pipeline predicts the slowdown experienced when two HPC jobs run concurrently on shared resources. It uses a few-shot learning approach where the model learns job representations from training applications and generalizes to unseen job combinations.
 
+The pipeline supports three evaluation methods:
+- **random_split**: Randomly split pairs from training apps into train/val/test sets
+- **zero_shot**: Evaluate on pairs from completely unseen applications (true few-shot learning)
+- **one_known**: Evaluate on pairs where at least one application is known from training
+
 ## Directory Structure
 
 ```
@@ -28,7 +33,8 @@ few_shot/
 The processed data (`data/processed_data.npz`) contains:
 - `job_ids`: List of application names (e.g., 'amg', 'beatnik', 'fiesta', etc.)
 - `set_features`: Tensor of shape (num_jobs, N, 8) - per-resource features for each job
-- `isolated_profiles`: Tensor of shape (num_jobs, 4) - standalone performance metrics
+- `isolated_profiles`: Tensor of shape (num_jobs, 4) - z-score normalized standalone performance metrics
+- `isolated_profiles_raw`: Tensor of shape (num_jobs, 4) - raw (un-normalized) standalone performance metrics
 - `pairs`: Tensor of shape (num_pairs, 4) - pairs of jobs with slowdown measurements
 
 ### Pair Structure
@@ -101,13 +107,14 @@ Output:
 
 ```python
 SEED = 42
-EPOCHS = 50
+EPOCHS = 500
 LEARNING_RATE = 1e-3
 BATCH_SIZE = 16
 MAX_GRAD_NORM = 1.0
 WEIGHT_DECAY = 5e-3
 EARLY_STOP_PATIENCE = 15
 VAL_SPLIT = 0.2
+EVAL_METHOD = 'random_split'  # 'random_split', 'zero_shot', or 'one_known'
 ```
 
 ### Training Procedure
@@ -144,31 +151,52 @@ VAL_SPLIT = 0.2
 
 Both metrics are computed on original (denormalized) scale.
 
-### Evaluation Protocol
+### Evaluation Methods
 
-The pipeline performs two evaluations:
+The pipeline supports three evaluation methods, each with different train/test splits:
 
-#### 1. Training Set Evaluation (Held-out Pairs)
+#### 1. random_split
 
-Tests generalization to **new job combinations** from training apps.
+Randomly splits pairs from training apps into train/validation/test sets.
+
+**Train Mode**: 80% of pairs from training apps (with val_split=0.2, 20% used for validation monitoring)
+**Val Mode**: 20% of pairs from training apps (held-out for validation)
+**Test Mode**: Same as train mode (used for final evaluation on held-out pairs)
 
 | Split | Apps Included | Samples | Purpose |
 |-------|---------------|---------|---------|
-| Training | amg, beatnik, fiesta, laghos, lammps, minife, minivite | 89 | Train model on 80% of pairs |
-| Validation | Same apps | 23 | Hold-out 20% for validation |
+| Train | amg, beatnik, fiesta, laghos, lammps, minife, minivite | ~89 | Train model on 80% of pairs |
+| Val | Same apps | ~23 | Hold-out 20% for validation |
 
 This measures how well the model generalizes to unseen **pair combinations** from known applications.
 
-#### 2. Test Set Evaluation (Unseen Apps)
+#### 2. zero_shot
 
-Tests generalization to **completely unseen applications** (true few-shot learning).
+Evaluates on pairs from completely unseen applications (true few-shot learning).
 
 | Split | Apps Included | Samples | Purpose |
 |-------|---------------|---------|---------|
-| Training | amg, beatnik, fiesta, laghos, lammps, minife, minivite | - | Model trained on these |
+| Train | - | - | Not used in zero_shot mode |
 | Test | kripke, quicksilver, tricount | 24 | Evaluate OOD generalization |
 
+**Test Mode**: Only includes pairs where both jobs are from test apps (kripke, quicksilver, tricount)
 This measures how well the model generalizes to **completely unseen applications** - the true few-shot learning capability.
+
+#### 3. one_known
+
+Evaluates on pairs where at least one application is known from training.
+
+| Split | Apps Included | Samples | Purpose |
+|-------|---------------|---------|---------|
+| Train | amg, beatnik, fiesta, laghos, lammps, minife, minivite | - | Model trained on these |
+| Test | Mix of train/test apps | Variable | Evaluate partial generalization |
+
+**Test Mode**: Includes pairs where:
+- Both jobs are from training apps
+- One job is from training, one from test apps
+- One job is from test apps, one from known apps
+
+This measures how well the model generalizes when **some context** from training apps is available.
 
 ### Application Classification
 
@@ -184,24 +212,28 @@ This measures how well the model generalizes to **completely unseen applications
 **Test Apps** (3 applications, completely held-out from training):
 - kripke
 - quicksilver
-- tricount
+- tricount (added in updated code)
 
-### Dataset Statistics
+### Dataset Statistics (random_split mode)
 
 | Metric | Value |
 |--------|-------|
 | Total apps | 10 |
 | Training apps | 7 |
-| Test apps | 3 |
+| Test apps | 3 (kripke, quicksilver, tricount) |
 | Total pairs | 110 |
 | Train-Train pairs | 56 |
 | Train-Test pairs | 42 |
 | Test-Test pairs | 12 |
-| Test samples (Test-Test × 2 directions) | 24 |
 
-**Note**: The 24 test samples come from 12 test-test pairs (kripke-quicksilver, kripke-tricount, quicksilver-tricount combinations), each doubled for bidirectional prediction.
+**zero_shot mode**: Only Test-Test pairs (12 pairs → 24 samples with bidirectional)
+**one_known mode**: Mix of Train-Train, Train-Test, and Test-Train pairs
+
+**Note**: Samples are doubled for bidirectional prediction (A→B and B→A).
 
 ## Results
+
+Results vary by evaluation method. Below are example results from `random_split` mode:
 
 ### Training Performance
 
@@ -211,24 +243,29 @@ This measures how well the model generalizes to **completely unseen applications
 | Best Validation Loss | 0.000262 |
 | Early Stopping Epoch | 50/50 |
 
-### Final Evaluation Results
+### Final Evaluation Results (random_split mode)
 
 **Training Set** (held-out pairs from training apps):
 - MSE: 0.000191
 - MAE: 0.010640
 
+**Test Set** (held-out pairs from training apps):
+- MSE: 0.000191
+- MAE: 0.010640
+
+### Zero-Shot Evaluation Results (zero_shot mode)
+
 **Test Set** (unseen apps: kripke, quicksilver, tricount):
 - MSE: 0.002923
 - MAE: 0.040720
 
-**Generalization Ratio**: 
-- MSE ratio: 15.3x
-- MAE ratio: 3.8x
+**Generalization to Unseen Apps**: 
+- MSE ratio: 15.3x higher than train set
+- MAE ratio: 3.8x higher than train set
 
-### Overfitting Analysis
+### One-Known Evaluation Results (one_known mode)
 
-- Train MSE: 0.00019, Test MSE: 0.00292 (unseen apps)
-- Train/Test ratio: 15.3x (significant improvement)
+Evaluates partial generalization when some context from training apps is available. Results typically fall between random_split and zero_shot performance.
 
 ## Running the Pipeline
 
@@ -238,27 +275,89 @@ This measures how well the model generalizes to **completely unseen applications
 source /home/akhil/hpcResearch/python_venvs/ml_analysis/bin/activate
 ```
 
-### Full Pipeline
+### Full Pipeline with Options
 
 ```bash
+# Default: random_split evaluation, no CSV output
 rm -f best_model.pt
 python3 main.py
+
+# Zero-shot evaluation on unseen apps
+rm -f best_model.pt
+python3 main.py --eval_method zero_shot
+
+# One-known evaluation with partial generalization
+rm -f best_model.pt
+python3 main.py --eval_method one_known
+
+# Save train.csv and test.csv files
+python3 main.py --save_csv
+
+# Run specific steps only
+python3 main.py --step preprocess
+python3 main.py --step train
+python3 main.py --step eval
 ```
 
-This runs preprocessing (if needed), training, and evaluation sequentially.
-
-### Individual Scripts
+### Individual Scripts with Options
 
 ```bash
 # Preprocessing only
 python3 preprocess.py
 
-# Training only
-python3 train.py
+# Training with specific eval method and save CSV
+python3 train.py --eval_method zero_shot --save_csv
 
-# Evaluation only
-python3 evaluate.py
+# Evaluation with specific eval method and save CSV
+python3 evaluate.py --eval_method zero_shot --save_csv
 ```
+
+### Command-Line Options
+
+#### main.py
+
+| Option | Default | Choices | Description |
+|--------|---------|---------|-------------|
+| `--eval_method` | random_split | random_split, zero_shot, one_known | Evaluation method to use |
+| `--save_csv` | False | - | Save train.csv and test.csv files |
+| `--step` | all | all, preprocess, train, eval | Which step to run |
+
+#### train.py / evaluate.py
+
+| Option | Default | Choices | Description |
+|--------|---------|---------|-------------|
+| `--eval_method` | random_split | random_split, zero_shot, one_known | Evaluation method to use |
+| `--seed` | 42 | int | Random seed for reproducibility |
+| `--save_csv` | False | - | Save train.csv and test.csv files |
+
+### Output Files
+
+When `--save_csv` is used, the pipeline creates:
+
+```
+output/
+├── train.csv   # Training set predictions (app_A, app_B, set_A, set_B, b_A, b_B, b_A_raw, b_B_raw, y_true, y_pred)
+└── test.csv    # Test set predictions (app_A, app_B, set_A, set_B, b_A, b_B, b_A_raw, b_B_raw, y_true, y_pred)
+```
+
+Each CSV contains:
+- `app_A`: Application name for job A (e.g., 'amg', 'kripke')
+- `app_B`: Application name for job B
+- `set_A`: Set features for job A (shape: N×8)
+- `set_B`: Set features for job B (shape: N×8)
+- `b_A`: Normalized isolated profile for job A (shape: 4)
+- `b_B`: Normalized isolated profile for job B (shape: 4)
+- `b_A_raw`: Raw (un-normalized) isolated profile for job A (shape: 4, columns: mpi_time, comm_frac, total_msgs, total_bytes)
+- `b_B_raw`: Raw (un-normalized) isolated profile for job B
+- `y_true`: Ground truth slowdown (denormalized)
+- `y_pred`: Predicted slowdown (denormalized)
+
+**Note on CSV content by eval_method:**
+- `train.csv` always contains pairs from **training apps only** (amg, beatnik, fiesta, laghos, lammps, minife, minivite), regardless of `--eval_method`. This is enforced by the `train_pairs_only=True` flag in `SlowdownDataset`.
+- `test.csv` contains pairs determined by the selected `--eval_method`:
+  - `random_split`: held-out pairs from training apps
+  - `zero_shot`: pairs where both jobs are test apps (kripke, quicksilver, tricount)
+  - `one_known`: pairs where at least one job is a training/known app
 
 ## Key Improvements for Generalization
 
@@ -268,6 +367,33 @@ python3 evaluate.py
 4. **Reduced Capacity**: Smaller embedding (16 vs 64) and hidden layers (8 vs 128)
 5. **Increased Dropout**: Higher dropout rate (0.4) for regularization
 6. **Validation Split**: 20% held-out data for proper generalization monitoring
+
+## Dataset Evaluation Modes
+
+The `SlowdownDataset` class supports three evaluation modes controlled by `eval_method`, plus a `train_pairs_only` flag that bypasses the eval_method filter:
+
+### train_pairs_only flag
+- When `train_pairs_only=True`, the dataset includes only pairs where **both jobs are from training apps**, regardless of the `eval_method` setting.
+- Used when saving `train.csv` to ensure the training CSV always contains actual training data, even in zero_shot or one_known modes.
+
+### Standard eval_method modes
+
+#### random_split
+- Filters pairs where both jobs are from training apps
+- Splits into train (80%) and val (20%) using random shuffle
+- Useful for debugging and hyperparameter tuning
+
+#### zero_shot
+- Filters pairs where both jobs are from test apps (kripke, quicksilver, tricount)
+- No training data used in this mode
+- Measures true few-shot generalization to unseen applications
+
+#### one_known
+- Filters pairs where at least one job is from training/known apps
+- Includes: train-train, train-test, test-train, test-known, known-known pairs
+- Measures partial generalization when some context is available
+
+All modes support the same train/val/test splitting via `mode` parameter.
 
 ## Reproducibility
 

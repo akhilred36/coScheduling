@@ -45,7 +45,7 @@ def main():
     
     print("Loading training dataset...")
     train_dataset = SlowdownDataset(DATA_PATH, train_apps=TRAIN_APPS, mode='train', val_split=VAL_SPLIT,
-                                    eval_method=EVAL_METHOD, seed=args.seed)
+                                    eval_method=EVAL_METHOD, seed=args.seed, train_pairs_only=True)
     train_loader = DataLoader(
         train_dataset, 
         batch_size=BATCH_SIZE, 
@@ -160,6 +160,10 @@ def main():
         train_set_B = []
         train_b_A = []
         train_b_B = []
+        train_b_A_raw = []
+        train_b_B_raw = []
+        train_app_A = []
+        train_app_B = []
         
         with torch.no_grad():
             train_loader_eval = DataLoader(train_dataset, batch_size=len(train_dataset), shuffle=False)
@@ -182,13 +186,19 @@ def main():
                 train_set_B.extend(set_B.cpu().numpy().tolist())
                 train_b_A.extend(b_A.cpu().numpy().tolist())
                 train_b_B.extend(b_B.cpu().numpy().tolist())
+                train_b_A_raw.extend(batch['b_A_raw'].cpu().numpy().tolist())
+                train_b_B_raw.extend(batch['b_B_raw'].cpu().numpy().tolist())
+                train_app_A.extend(batch['app_A'])
+                train_app_B.extend(batch['app_B'])
         
         # Write train.csv
         with open('output/train.csv', 'w', newline='') as f:
             writer = csv.writer(f)
-            writer.writerow(['set_A', 'set_B', 'b_A', 'b_B', 'y_true', 'y_pred'])
+            writer.writerow(['app_A', 'app_B', 'set_A', 'set_B', 'b_A', 'b_B', 'b_A_raw', 'b_B_raw', 'y_true', 'y_pred'])
             for i in range(len(train_true)):
-                writer.writerow([train_set_A[i], train_set_B[i], train_b_A[i], train_b_B[i],
+                writer.writerow([train_app_A[i], train_app_B[i],
+                               train_set_A[i], train_set_B[i], train_b_A[i], train_b_B[i],
+                               train_b_A_raw[i], train_b_B_raw[i],
                                train_true[i], train_preds[i]])
         
         print(f"Saved train.csv with {len(train_true)} samples")
@@ -204,6 +214,10 @@ def main():
         test_set_B = []
         test_b_A = []
         test_b_B = []
+        test_b_A_raw = []
+        test_b_B_raw = []
+        test_app_A = []
+        test_app_B = []
         
         with torch.no_grad():
             test_loader_eval = DataLoader(test_dataset, batch_size=len(test_dataset), shuffle=False)
@@ -226,13 +240,19 @@ def main():
                 test_set_B.extend(set_B.cpu().numpy().tolist())
                 test_b_A.extend(b_A.cpu().numpy().tolist())
                 test_b_B.extend(b_B.cpu().numpy().tolist())
+                test_b_A_raw.extend(batch['b_A_raw'].cpu().numpy().tolist())
+                test_b_B_raw.extend(batch['b_B_raw'].cpu().numpy().tolist())
+                test_app_A.extend(batch['app_A'])
+                test_app_B.extend(batch['app_B'])
         
         # Write test.csv
         with open('output/test.csv', 'w', newline='') as f:
             writer = csv.writer(f)
-            writer.writerow(['set_A', 'set_B', 'b_A', 'b_B', 'y_true', 'y_pred'])
+            writer.writerow(['app_A', 'app_B', 'set_A', 'set_B', 'b_A', 'b_B', 'b_A_raw', 'b_B_raw', 'y_true', 'y_pred'])
             for i in range(len(test_true)):
-                writer.writerow([test_set_A[i], test_set_B[i], test_b_A[i], test_b_B[i],
+                writer.writerow([test_app_A[i], test_app_B[i],
+                               test_set_A[i], test_set_B[i], test_b_A[i], test_b_B[i],
+                               test_b_A_raw[i], test_b_B_raw[i],
                                test_true[i], test_preds[i]])
         
         print(f"Saved test.csv with {len(test_true)} samples")

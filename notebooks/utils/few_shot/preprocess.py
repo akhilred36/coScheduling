@@ -139,13 +139,18 @@ def main():
             set_features[job_idx, inhib_idx, 6] = (row['total_msgs'] - total_msgs_mean_inh) / total_msgs_std_inh
             set_features[job_idx, inhib_idx, 7] = (row['total_bytes'] - total_bytes_mean_inh) / total_bytes_std_inh
     
-   # Build isolated profiles: (10, 4)
+    # Build isolated profiles: (10, 4)
     # Columns: mpi_time, comm_frac, total_msgs, total_bytes
     print("Building isolated profiles...")
     isolated_profiles = np.zeros((n_jobs, 4), dtype=np.float32)
+    isolated_profiles_raw = np.zeros((n_jobs, 4), dtype=np.float32)
     
     for _, row in jobs_df.iterrows():
         job_idx = job_id_to_idx[row['job_id']]
+        isolated_profiles_raw[job_idx, 0] = row['mpi_time']
+        isolated_profiles_raw[job_idx, 1] = row['comm_frac']
+        isolated_profiles_raw[job_idx, 2] = row['total_msgs']
+        isolated_profiles_raw[job_idx, 3] = row['total_bytes']
         isolated_profiles[job_idx, 0] = (row['mpi_time'] - mpi_time_mean_iso) / mpi_time_std_iso
         isolated_profiles[job_idx, 1] = (row['comm_frac'] - comm_frac_mean_iso) / comm_frac_std_iso
         isolated_profiles[job_idx, 2] = (row['total_msgs'] - total_msgs_mean_iso) / total_msgs_std_iso
@@ -176,6 +181,7 @@ def main():
         job_ids=np.array(unique_jobs, dtype=object),
         set_features=set_features,
         isolated_profiles=isolated_profiles,
+        isolated_profiles_raw=isolated_profiles_raw,
         pairs=pairs,
         inhibitor_ids=np.array(common_inhibs_sorted, dtype=object),
         slowdown_mean=np.float32(slowdown_mean),
@@ -208,6 +214,7 @@ def main():
     print(f"  - job_ids: {unique_jobs}")
     print(f"  - set_features shape: {set_features.shape}")
     print(f"  - isolated_profiles shape: {isolated_profiles.shape}")
+    print(f"  - isolated_profiles_raw shape: {isolated_profiles_raw.shape}")
     print(f"  - pairs shape: {pairs.shape}")
 
 if __name__ == "__main__":
