@@ -3,6 +3,7 @@
 Training Script for Slowdown Predictor
 """
 
+import argparse
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -18,21 +19,33 @@ TRAIN_APPS = ['amg', 'beatnik', 'fiesta', 'laghos',
 DATA_PATH = "data/processed_data.npz"
 MODEL_PATH = "best_model.pt"
 SEED = 42
-EPOCHS = 50
+EPOCHS = 500
 LEARNING_RATE = 1e-3
 BATCH_SIZE = 16
 MAX_GRAD_NORM = 1.0
 WEIGHT_DECAY = 5e-3
 EARLY_STOP_PATIENCE = 15
 VAL_SPLIT = 0.2
+EVAL_METHOD = 'random_split'
 
 
 def main():
+    parser = argparse.ArgumentParser(description='Training script for slowdown predictor')
+    parser.add_argument('--eval_method', type=str, default=EVAL_METHOD,
+                        choices=['random_split', 'zero_shot', 'one_known'],
+                        help='Evaluation method to use')
+    parser.add_argument('--seed', type=int, default=SEED,
+                        help='Random seed for reproducibility')
+    parser.add_argument('--save_csv', action='store_true',
+                        help='Save train.csv and test.csv files')
+    args = parser.parse_args()
+    
     # Set random seed for reproducibility
-    torch.manual_seed(SEED)
+    torch.manual_seed(args.seed)
     
     print("Loading training dataset...")
-    train_dataset = SlowdownDataset(DATA_PATH, train_apps=TRAIN_APPS, mode='train', val_split=VAL_SPLIT)
+    train_dataset = SlowdownDataset(DATA_PATH, train_apps=TRAIN_APPS, mode='train', val_split=VAL_SPLIT,
+                                    eval_method=EVAL_METHOD, seed=args.seed)
     train_loader = DataLoader(
         train_dataset, 
         batch_size=BATCH_SIZE, 
@@ -43,7 +56,8 @@ def main():
     print(f"Normalization: mean={train_dataset.y_mean:.4f}, std={train_dataset.y_std:.4f}")
     
     # Create validation dataset with same normalization
-    val_dataset = SlowdownDataset(DATA_PATH, train_apps=TRAIN_APPS, mode='val', test_split=0.0)
+    val_dataset = SlowdownDataset(DATA_PATH, train_apps=TRAIN_APPS, mode='val', test_split=0.0,
+                                  eval_method=args.eval_method, seed=args.seed)
     val_loader = DataLoader(val_dataset, batch_size=len(val_dataset), shuffle=False)
     print(f"Validation samples: {len(val_dataset)}")
     
@@ -126,10 +140,102 @@ def main():
             for param_group in optimizer.param_groups:
                 param_group['lr'] *= 0.5
     
-    # Load best model
+  # Load best model
     model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
     print(f"\nTraining complete. Best model loaded from {MODEL_PATH}")
     print(f"Best Val Loss: {best_val_loss:.6f}, Train Loss: {best_train_loss:.6f}")
+    
+    # Save CSV files if requested
+    if args.save_csv:
+        import csv
+        import os
+        
+        os.makedirs('output', exist_ok=True)
+        
+        # Generate predictions on training dataset
+        model.eval()
+        train_preds = []
+        train_true = []
+        train_set_A = []
+        train_set_B = []
+        train_b_A = []
+        train_b_B = []
+        
+        with torch.no_grad():
+            train_loader_eval = DataLoader(train_dataset, batch_size=len(train_dataset), shuffle=False)
+            for batch in train_loader_eval:
+                set_A = batch['set_A'].to(device)
+                set_B = batch['set_B'].to(device)
+                b_A = batch['b_A'].to(device)
+                b_B = batch['b_B'].to(device)
+                y = batch['y'].to(device)
+                
+                pred = model(set_A, set_B, b_A, b_B)
+                
+                # Denormalize
+                pred_orig = pred * train_dataset.y_std + train_dataset.y_mean
+                y_orig = y * train_dataset.y_std + train_dataset.y_mean
+                
+                train_preds.extend(pred_orig.cpu().numpy().tolist())
+                train_true.extend(y_orig.cpu().numpy().tolist())
+                train_set_A.extend(set_A.cpu().numpy().tolist())
+                train_set_B.extend(set_B.cpu().numpy().tolist())
+                train_b_A.extend(b_A.cpu().numpy().tolist())
+                train_b_B.extend(b_B.cpu().numpy().tolist())
+        
+        # Write train.csv
+        with open('output/train.csv', 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['set_A', 'set_B', 'b_A', 'b_B', 'y_true', 'y_pred'])
+            for i in range(len(train_true)):
+                writer.writerow([train_set_A[i], train_set_B[i], train_b_A[i], train_b_B[i],
+                               train_true[i], train_preds[i]])
+        
+        print(f"Saved train.csv with {len(train_true)} samples")
+        
+        # Generate predictions on test dataset
+        test_dataset = SlowdownDataset(DATA_PATH, train_apps=TRAIN_APPS, mode='test', val_split=0.0,
+                                       eval_method=args.eval_method, seed=args.seed)
+        
+        model.eval()
+        test_preds = []
+        test_true = []
+        test_set_A = []
+        test_set_B = []
+        test_b_A = []
+        test_b_B = []
+        
+        with torch.no_grad():
+            test_loader_eval = DataLoader(test_dataset, batch_size=len(test_dataset), shuffle=False)
+            for batch in test_loader_eval:
+                set_A = batch['set_A'].to(device)
+                set_B = batch['set_B'].to(device)
+                b_A = batch['b_A'].to(device)
+                b_B = batch['b_B'].to(device)
+                y = batch['y'].to(device)
+                
+                pred = model(set_A, set_B, b_A, b_B)
+                
+                # Denormalize
+                pred_orig = pred * test_dataset.y_std + test_dataset.y_mean
+                y_orig = y * test_dataset.y_std + test_dataset.y_mean
+                
+                test_preds.extend(pred_orig.cpu().numpy().tolist())
+                test_true.extend(y_orig.cpu().numpy().tolist())
+                test_set_A.extend(set_A.cpu().numpy().tolist())
+                test_set_B.extend(set_B.cpu().numpy().tolist())
+                test_b_A.extend(b_A.cpu().numpy().tolist())
+                test_b_B.extend(b_B.cpu().numpy().tolist())
+        
+        # Write test.csv
+        with open('output/test.csv', 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['set_A', 'set_B', 'b_A', 'b_B', 'y_true', 'y_pred'])
+            for i in range(len(test_true)):
+                writer.writerow([test_set_A[i], test_set_B[i], test_b_A[i], test_b_B[i],
+                               test_true[i], test_preds[i]])
+        
+        print(f"Saved test.csv with {len(test_true)} samples")
 
 
 if __name__ == "__main__":

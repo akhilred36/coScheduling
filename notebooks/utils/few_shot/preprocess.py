@@ -128,7 +128,7 @@ def main():
         # Sort by inhib_id to ensure consistent order
         job_data = job_data.sort_values('inhib_id')
         
-    for _, row in job_data.iterrows():
+        for _, row in job_data.iterrows():
             inhib_idx = inhib_id_to_idx[row['inhib_id']]
             set_features[job_idx, inhib_idx, 0] = (row['slowdown'] - slowdown_mean) / slowdown_std
             set_features[job_idx, inhib_idx, 1] = (row['msg_size'] - msg_size_mean) / msg_size_std
@@ -151,7 +151,7 @@ def main():
         isolated_profiles[job_idx, 2] = (row['total_msgs'] - total_msgs_mean_iso) / total_msgs_std_iso
         isolated_profiles[job_idx, 3] = (row['total_bytes'] - total_bytes_mean_iso) / total_bytes_std_iso
     
-    # Build pair targets
+  # Build pair targets
     print("Building pair targets...")
     pairs_list = []
     for _, row in pair_df.iterrows():
@@ -164,10 +164,10 @@ def main():
         idx_b = job_id_to_idx[job_b]
         
         # Add both directions
-        pairs_list.append([idx_a, idx_b, slowdown_a, slowdown_b])
-        pairs_list.append([idx_b, idx_a, slowdown_b, slowdown_a])
+        pairs_list.append([idx_a, idx_b, float(slowdown_a), float(slowdown_b)])
+        pairs_list.append([idx_b, idx_a, float(slowdown_b), float(slowdown_a)])
     
-    pairs = np.array(pairs_list, dtype=np.int32)
+    pairs = np.array(pairs_list, dtype=np.float32)
     
    # Save as NPZ
     print(f"Saving to {output_path}...")
