@@ -159,6 +159,7 @@ def main():
   # Build pair targets
     print("Building pair targets...")
     pairs_list = []
+    seen_pairs = set()
     for _, row in pair_df.iterrows():
         job_a = row['jobA_id']
         job_b = row['jobB_id']
@@ -168,9 +169,24 @@ def main():
         idx_a = job_id_to_idx[job_a]
         idx_b = job_id_to_idx[job_b]
         
-        # Add both directions
-        pairs_list.append([idx_a, idx_b, float(slowdown_a), float(slowdown_b)])
-        pairs_list.append([idx_b, idx_a, float(slowdown_b), float(slowdown_a)])
+        # Skip duplicate self-pairs
+        if idx_a == idx_b:
+            pair_key = (idx_a, idx_b)
+            if pair_key in seen_pairs:
+                continue
+            seen_pairs.add(pair_key)
+        
+        # Add both directions for different jobs, only once for same job
+        if idx_a != idx_b:
+            pair_key_ab = (idx_a, idx_b)
+            pair_key_ba = (idx_b, idx_a)
+            if pair_key_ab not in seen_pairs and pair_key_ba not in seen_pairs:
+                pairs_list.append([idx_a, idx_b, float(slowdown_a), float(slowdown_b)])
+                pairs_list.append([idx_b, idx_a, float(slowdown_b), float(slowdown_a)])
+                seen_pairs.add(pair_key_ab)
+                seen_pairs.add(pair_key_ba)
+        else:
+            pairs_list.append([idx_a, idx_b, float(slowdown_a), float(slowdown_b)])
     
     pairs = np.array(pairs_list, dtype=np.float32)
     
