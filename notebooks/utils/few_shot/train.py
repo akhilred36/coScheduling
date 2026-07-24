@@ -16,6 +16,10 @@ from model import SlowdownPredictor
 TRAIN_APPS = ['amg', 'beatnik', 'fiesta', 'laghos', 
               'lammps', 'minife', 'minivite']
 
+# TRAIN_APPS = ['amg', 'beatnik', 'fiesta', 'laghos', 
+            #   'lammps', 'minife', 'minivite', 'tricount',
+            #   'quicksilver', 'kripke']
+
 DATA_PATH = "data/processed_data.npz"
 MODEL_PATH = "best_model.pt"
 SEED = 42

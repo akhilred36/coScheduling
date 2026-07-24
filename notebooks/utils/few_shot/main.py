@@ -9,11 +9,6 @@ import os
 import subprocess
 import sys
 
-
-# Training configuration
-TRAIN_APPS = ['amg', 'beatnik', 'fiesta', 'kripke', 'laghos', 
-              'lammps', 'minife', 'minivite', 'quicksilver']
-
 DATA_PATH = "data/processed_data.npz"
 PREPROCESS_SCRIPT = "preprocess.py"
 TRAIN_SCRIPT = "train.py"
