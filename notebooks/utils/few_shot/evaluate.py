@@ -4,15 +4,12 @@ Evaluation Script for Slowdown Predictor
 """
 
 import argparse
+import sys
 import torch
 from torch.utils.data import DataLoader
 
 from dataset import SlowdownDataset
 from model import SlowdownPredictor
-
-# Training apps (for model training)
-TRAIN_APPS = ['amg', 'beatnik', 'fiesta', 'laghos', 
-              'lammps', 'minife', 'minivite']
 
 DATA_PATH = "data/processed_data.npz"
 MODEL_PATH = "best_model.pt"
@@ -71,11 +68,22 @@ def main():
     parser.add_argument('--eval_method', type=str, default=EVAL_METHOD,
                         choices=['random_split', 'zero_shot', 'one_known'],
                         help='Evaluation method to use')
+    parser.add_argument('--train_split', type=float, default=0.8,
+                        help='Train/test split fraction for random_split evaluation (default: 0.8)')
     parser.add_argument('--seed', type=int, default=42,
                         help='Random seed for reproducibility')
-    parser.add_argument('--save_csv', action='store_true',
-                        help='Save train.csv and test.csv files')
+    parser.add_argument('--save_csv', type=str, nargs='?', const='output', default=None,
+                        help='Save train.csv and test.csv files to specified directory (default: output/)')
+    parser.add_argument('--training_apps', type=str, default='amg,beatnik,fiesta,laghos,lammps,minife,minivite',
+                        help='Comma-separated list of training applications (default: amg,beatnik,fiesta,laghos,lammps,minife,minivite)')
     args = parser.parse_args()
+    
+    if args.eval_method != 'random_split' and args.train_split != 0.8:
+        print("Error: --train_split can only be used with --eval_method random_split")
+        sys.exit(1)
+    
+    # Parse training apps from command line
+    custom_train_apps = [app.strip() for app in args.training_apps.split(',')]
     
     # Set random seed
     torch.manual_seed(args.seed)
@@ -83,14 +91,18 @@ def main():
     print("Loading evaluation datasets...")
     
     # Training dataset (held-out pairs from training apps)
-    train_dataset = SlowdownDataset(DATA_PATH, train_apps=TRAIN_APPS, mode='train', val_split=VAL_SPLIT,
-                                    eval_method=EVAL_METHOD, seed=args.seed)
+    if args.eval_method == 'random_split':
+        train_val_split = 1 - args.train_split
+    else:
+        train_val_split = VAL_SPLIT
+    train_dataset = SlowdownDataset(DATA_PATH, train_apps=custom_train_apps, mode='train', val_split=train_val_split,
+                                    eval_method=args.eval_method, seed=args.seed, train_split=args.train_split)
     train_loader = DataLoader(train_dataset, batch_size=len(train_dataset), shuffle=False)
     print(f"Train samples: {len(train_dataset)}")
     
     # Test dataset
-    test_dataset = SlowdownDataset(DATA_PATH, train_apps=TRAIN_APPS, mode='test', val_split=0.0,
-                                   eval_method=EVAL_METHOD, seed=args.seed)
+    test_dataset = SlowdownDataset(DATA_PATH, train_apps=custom_train_apps, mode='test', val_split=0.0,
+                                   eval_method=args.eval_method, seed=args.seed, train_split=args.train_split)
     test_loader = DataLoader(test_dataset, batch_size=len(test_dataset), shuffle=False)
     print(f"Test samples: {len(test_dataset)}")
     
@@ -128,12 +140,17 @@ def main():
         import csv
         import os
         
-        os.makedirs('output', exist_ok=True)
+        csv_dir = args.save_csv
+        os.makedirs(csv_dir, exist_ok=True)
         
         # For CSV output, train dataset uses train_pairs_only to get actual training data
-        csv_train_dataset = SlowdownDataset(DATA_PATH, train_apps=TRAIN_APPS, mode='train', val_split=VAL_SPLIT,
+        if args.eval_method == 'random_split':
+            csv_train_val_split = 1 - args.train_split
+        else:
+            csv_train_val_split = VAL_SPLIT
+        csv_train_dataset = SlowdownDataset(DATA_PATH, train_apps=custom_train_apps, mode='train', val_split=csv_train_val_split,
                                             eval_method=args.eval_method, seed=args.seed,
-                                            train_pairs_only=True)
+                                            train_pairs_only=True, train_split=args.train_split)
         csv_train_loader = DataLoader(csv_train_dataset, batch_size=len(csv_train_dataset), shuffle=False)
         (_, _, csv_train_preds, csv_train_true, csv_train_set_A, csv_train_set_B,
          csv_train_b_A, csv_train_b_B, csv_train_b_A_raw, csv_train_b_B_raw,
@@ -142,7 +159,7 @@ def main():
             csv_train_dataset.y_mean, csv_train_dataset.y_std, csv_train_dataset)
         
         # Test dataset uses the specified eval method
-        csv_test_dataset = SlowdownDataset(DATA_PATH, train_apps=TRAIN_APPS, mode='test', val_split=0.0,
+        csv_test_dataset = SlowdownDataset(DATA_PATH, train_apps=custom_train_apps, mode='test', val_split=0.0,
                                            eval_method=args.eval_method, seed=args.seed)
         csv_test_loader = DataLoader(csv_test_dataset, batch_size=len(csv_test_dataset), shuffle=False)
         (_, _, csv_test_preds, csv_test_true, csv_test_set_A, csv_test_set_B,
@@ -152,7 +169,7 @@ def main():
             csv_test_dataset.y_mean, csv_test_dataset.y_std, csv_test_dataset)
         
         # Write train.csv
-        with open('output/train.csv', 'w', newline='') as f:
+        with open(os.path.join(csv_dir, 'train.csv'), 'w', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(['app_A', 'app_B', 'set_A', 'set_B', 'b_A', 'b_B', 'b_A_raw', 'b_B_raw', 'y_true', 'y_pred'])
             for i in range(len(csv_train_true)):
@@ -163,7 +180,7 @@ def main():
         print(f"Saved train.csv with {len(csv_train_true)} samples")
         
         # Write test.csv
-        with open('output/test.csv', 'w', newline='') as f:
+        with open(os.path.join(csv_dir, 'test.csv'), 'w', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(['app_A', 'app_B', 'set_A', 'set_B', 'b_A', 'b_B', 'b_A_raw', 'b_B_raw', 'y_true', 'y_pred'])
             for i in range(len(csv_test_true)):

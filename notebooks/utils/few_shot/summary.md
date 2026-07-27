@@ -120,9 +120,10 @@ EVAL_METHOD = 'random_split'  # 'random_split', 'zero_shot', or 'one_known'
 ### Training Procedure
 
 1. **Data Splitting**:
-   - 80% of training data for training
-   - 20% held out for validation monitoring
-   - Uses same normalization statistics from full training set
+    - 80% of training data for training (default, configurable via `--train_split`)
+    - 20% held out for validation monitoring (default, configurable via `--train_split`)
+    - Uses same normalization statistics from full training set
+    - `--train_split` flag only applies to `random_split` evaluation method
 
 2. **Optimization**:
    - Loss: MSE (Mean Squared Error)
@@ -159,14 +160,21 @@ The pipeline supports three evaluation methods, each with different train/test s
 
 Randomly splits pairs from training apps into train/validation/test sets.
 
-**Train Mode**: 80% of pairs from training apps (with val_split=0.2, 20% used for validation monitoring)
-**Val Mode**: 20% of pairs from training apps (held-out for validation)
+**Train Mode**: Configurable percentage (default 80%) of pairs from training apps
+**Val Mode**: Remaining percentage (default 20%) of pairs from training apps for validation monitoring
 **Test Mode**: Same as train mode (used for final evaluation on held-out pairs)
 
 | Split | Apps Included | Samples | Purpose |
 |-------|---------------|---------|---------|
 | Train | amg, beatnik, fiesta, laghos, lammps, minife, minivite | ~89 | Train model on 80% of pairs |
 | Val | Same apps | ~23 | Hold-out 20% for validation |
+
+Control the train/val split with `--train_split` (default: 0.8):
+
+```bash
+python3 main.py --eval_method random_split --train_split 0.9  # 90% train, 10% val
+python3 main.py --eval_method random_split --train_split 0.7  # 70% train, 30% val
+```
 
 This measures how well the model generalizes to unseen **pair combinations** from known applications.
 
@@ -278,9 +286,13 @@ source /home/akhil/hpcResearch/python_venvs/ml_analysis/bin/activate
 ### Full Pipeline with Options
 
 ```bash
-# Default: random_split evaluation, no CSV output
+# Default: random_split evaluation, no CSV output (80/20 train/val split)
 rm -f best_model.pt
 python3 main.py
+
+# Custom train/test split (e.g., 90% train, 10% val)
+rm -f best_model.pt
+python3 main.py --eval_method random_split --train_split 0.9
 
 # Zero-shot evaluation on unseen apps
 rm -f best_model.pt
@@ -290,8 +302,15 @@ python3 main.py --eval_method zero_shot
 rm -f best_model.pt
 python3 main.py --eval_method one_known
 
-# Save train.csv and test.csv files
+# Custom training apps
+rm -f best_model.pt
+python3 main.py --training_apps "amg,beatnik,fiesta"
+
+# Save train.csv and test.csv files (default: output/)
 python3 main.py --save_csv
+
+# Save to custom directory
+python3 main.py --save_csv /path/to/output/
 
 # Run specific steps only
 python3 main.py --step preprocess
@@ -305,11 +324,23 @@ python3 main.py --step eval
 # Preprocessing only
 python3 preprocess.py
 
-# Training with specific eval method and save CSV
+# Training with specific eval method and save CSV (default: output/)
 python3 train.py --eval_method zero_shot --save_csv
+
+# Training with custom training apps
+python3 train.py --training_apps "amg,beatnik"
+
+# Training with custom directory
+python3 train.py --eval_method zero_shot --save_csv /path/to/output/
 
 # Evaluation with specific eval method and save CSV
 python3 evaluate.py --eval_method zero_shot --save_csv
+
+# Evaluation with custom training apps
+python3 evaluate.py --training_apps "amg,beatnik,fiesta"
+
+# Evaluation with custom directory
+python3 evaluate.py --eval_method zero_shot --save_csv /path/to/output/
 ```
 
 ### Command-Line Options
@@ -319,7 +350,9 @@ python3 evaluate.py --eval_method zero_shot --save_csv
 | Option | Default | Choices | Description |
 |--------|---------|---------|-------------|
 | `--eval_method` | random_split | random_split, zero_shot, one_known | Evaluation method to use |
-| `--save_csv` | False | - | Save train.csv and test.csv files |
+| `--train_split` | 0.8 | float | Train/test split fraction for random_split evaluation (default: 0.8). Only used with random_split |
+| `--training_apps` | amg,beatnik,fiesta,laghos,lammps,minife,minivite | str | Comma-separated list of training applications |
+| `--save_csv` | None | - | Save train.csv and test.csv files to directory (default: output/) |
 | `--step` | all | all, preprocess, train, eval | Which step to run |
 
 #### train.py / evaluate.py
@@ -327,17 +360,24 @@ python3 evaluate.py --eval_method zero_shot --save_csv
 | Option | Default | Choices | Description |
 |--------|---------|---------|-------------|
 | `--eval_method` | random_split | random_split, zero_shot, one_known | Evaluation method to use |
+| `--train_split` | 0.8 | float | Train/test split fraction for random_split evaluation (default: 0.8). Only used with random_split |
 | `--seed` | 42 | int | Random seed for reproducibility |
-| `--save_csv` | False | - | Save train.csv and test.csv files |
+| `--training_apps` | amg,beatnik,fiesta,laghos,lammps,minife,minivite | str | Comma-separated list of training applications |
+| `--save_csv` | None | - | Save train.csv and test.csv files to directory (default: output/) |
 
 ### Output Files
 
-When `--save_csv` is used, the pipeline creates:
+When `--save_csv` is used, the pipeline creates `train.csv` and `test.csv` in the specified directory (default: `output/`):
 
 ```
 output/
 ├── train.csv   # Training set predictions (app_A, app_B, set_A, set_B, b_A, b_B, b_A_raw, b_B_raw, y_true, y_pred)
 └── test.csv    # Test set predictions (app_A, app_B, set_A, set_B, b_A, b_B, b_A_raw, b_B_raw, y_true, y_pred)
+```
+
+To specify a custom directory:
+```bash
+python3 main.py --save_csv /custom/path/
 ```
 
 Each CSV contains:

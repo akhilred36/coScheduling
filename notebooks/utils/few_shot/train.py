@@ -4,6 +4,7 @@ Training Script for Slowdown Predictor
 """
 
 import argparse
+import sys
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -11,14 +12,6 @@ from torch.utils.data import DataLoader
 
 from dataset import SlowdownDataset
 from model import SlowdownPredictor
-
-# Training configuration
-TRAIN_APPS = ['amg', 'beatnik', 'fiesta', 'laghos', 
-              'lammps', 'minife', 'minivite']
-
-# TRAIN_APPS = ['amg', 'beatnik', 'fiesta', 'laghos', 
-            #   'lammps', 'minife', 'minivite', 'tricount',
-            #   'quicksilver', 'kripke']
 
 DATA_PATH = "data/processed_data.npz"
 MODEL_PATH = "best_model.pt"
@@ -38,18 +31,33 @@ def main():
     parser.add_argument('--eval_method', type=str, default=EVAL_METHOD,
                         choices=['random_split', 'zero_shot', 'one_known'],
                         help='Evaluation method to use')
+    parser.add_argument('--train_split', type=float, default=0.8,
+                        help='Train/test split fraction for random_split evaluation (default: 0.8)')
     parser.add_argument('--seed', type=int, default=SEED,
                         help='Random seed for reproducibility')
-    parser.add_argument('--save_csv', action='store_true',
-                        help='Save train.csv and test.csv files')
+    parser.add_argument('--save_csv', type=str, nargs='?', const='output', default=None,
+                        help='Save train.csv and test.csv files to specified directory (default: output/)')
+    parser.add_argument('--training_apps', type=str, default='amg,beatnik,fiesta,laghos,lammps,minife,minivite',
+                        help='Comma-separated list of training applications (default: amg,beatnik,fiesta,laghos,lammps,minife,minivite)')
     args = parser.parse_args()
+    
+    if args.eval_method != 'random_split' and args.train_split != 0.8:
+        print("Error: --train_split can only be used with --eval_method random_split")
+        sys.exit(1)
+    
+    # Parse training apps from command line
+    custom_train_apps = [app.strip() for app in args.training_apps.split(',')]
     
     # Set random seed for reproducibility
     torch.manual_seed(args.seed)
     
     print("Loading training dataset...")
-    train_dataset = SlowdownDataset(DATA_PATH, train_apps=TRAIN_APPS, mode='train', val_split=VAL_SPLIT,
-                                    eval_method=EVAL_METHOD, seed=args.seed, train_pairs_only=True)
+    if args.eval_method == 'random_split':
+        train_val_split = 1 - args.train_split
+    else:
+        train_val_split = VAL_SPLIT
+    train_dataset = SlowdownDataset(DATA_PATH, train_apps=custom_train_apps, mode='train', val_split=train_val_split,
+                                    eval_method=args.eval_method, seed=args.seed, train_pairs_only=True)
     train_loader = DataLoader(
         train_dataset, 
         batch_size=BATCH_SIZE, 
@@ -60,7 +68,7 @@ def main():
     print(f"Normalization: mean={train_dataset.y_mean:.4f}, std={train_dataset.y_std:.4f}")
     
     # Create validation dataset with same normalization
-    val_dataset = SlowdownDataset(DATA_PATH, train_apps=TRAIN_APPS, mode='val', test_split=0.0,
+    val_dataset = SlowdownDataset(DATA_PATH, train_apps=custom_train_apps, mode='val', test_split=0.0,
                                   eval_method=args.eval_method, seed=args.seed)
     val_loader = DataLoader(val_dataset, batch_size=len(val_dataset), shuffle=False)
     print(f"Validation samples: {len(val_dataset)}")
@@ -154,7 +162,8 @@ def main():
         import csv
         import os
         
-        os.makedirs('output', exist_ok=True)
+        csv_dir = args.save_csv
+        os.makedirs(csv_dir, exist_ok=True)
         
         # Generate predictions on training dataset
         model.eval()
@@ -196,7 +205,7 @@ def main():
                 train_app_B.extend(batch['app_B'])
         
         # Write train.csv
-        with open('output/train.csv', 'w', newline='') as f:
+        with open(os.path.join(csv_dir, 'train.csv'), 'w', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(['app_A', 'app_B', 'set_A', 'set_B', 'b_A', 'b_B', 'b_A_raw', 'b_B_raw', 'y_true', 'y_pred'])
             for i in range(len(train_true)):
@@ -207,9 +216,9 @@ def main():
         
         print(f"Saved train.csv with {len(train_true)} samples")
         
-        # Generate predictions on test dataset
-        test_dataset = SlowdownDataset(DATA_PATH, train_apps=TRAIN_APPS, mode='test', val_split=0.0,
-                                       eval_method=args.eval_method, seed=args.seed)
+# Generate predictions on test dataset
+        test_dataset = SlowdownDataset(DATA_PATH, train_apps=custom_train_apps, mode='test', val_split=0.0,
+                                         eval_method=args.eval_method, seed=args.seed, train_split=args.train_split)
         
         model.eval()
         test_preds = []
@@ -250,7 +259,7 @@ def main():
                 test_app_B.extend(batch['app_B'])
         
         # Write test.csv
-        with open('output/test.csv', 'w', newline='') as f:
+        with open(os.path.join(csv_dir, 'test.csv'), 'w', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(['app_A', 'app_B', 'set_A', 'set_B', 'b_A', 'b_B', 'b_A_raw', 'b_B_raw', 'y_true', 'y_pred'])
             for i in range(len(test_true)):

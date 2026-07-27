@@ -10,7 +10,7 @@ import numpy as np
 
 class SlowdownDataset(Dataset):
     def __init__(self, data_path, train_apps, mode='train', val_split=0.0, test_split=0.0,
-                 eval_method='zero_shot', seed=42, known_apps=None, train_pairs_only=False):
+                 eval_method='zero_shot', seed=42, known_apps=None, train_pairs_only=False, train_split=0.8):
         """
         Args:
             data_path: Path to processed_data.npz
@@ -22,6 +22,7 @@ class SlowdownDataset(Dataset):
             seed: Random seed for reproducibility
             known_apps: List of known apps for one_known evaluation (optional)
             train_pairs_only: If True, bypass eval_method filter and include only training-app pairs
+            train_split: Train/test split fraction for random_split evaluation (default: 0.8)
         """
         self.mode = mode
         self.val_split = val_split
@@ -102,8 +103,12 @@ class SlowdownDataset(Dataset):
         
         if mode == 'train' and val_split > 0:
             random.shuffle(self.samples)
-            split_idx = int(len(self.samples) * (1 - val_split))
-            self.samples = self.samples[:split_idx]
+            if self.eval_method == 'random_split' and train_split < 1.0:
+                split_idx = int(len(self.samples) * train_split)
+                self.samples = self.samples[:split_idx]
+            else:
+                split_idx = int(len(self.samples) * (1 - val_split))
+                self.samples = self.samples[:split_idx]
         
         # Compute normalization statistics
         all_y = [y for _, _, y in self.samples]
