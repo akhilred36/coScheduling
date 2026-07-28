@@ -435,7 +435,90 @@ The `SlowdownDataset` class supports three evaluation modes controlled by `eval_
 
 All modes support the same train/val/test splitting via `mode` parameter.
 
-## Reproducibility
+## Experiment Runner
+
+The `run_experiments.py` script automates running experiments across all three evaluation modes with systematic variations.
+
+### Overview
+
+This script runs a comprehensive experiment sweep:
+
+| Mode | Parameter | Range | Total Experiments |
+|------|-----------|-------|-------------------|
+| random_split | train/val ratio | 0.5–0.9 (0.1 steps) × 10 iterations | 50 |
+| one_known | training apps | all combinations of 3–8 apps from 10 | 1,094 |
+| zero_shot | training apps | all combinations of 3–8 apps from 10 | 1,094 |
+
+**Total**: 2,238 experiments
+
+### Command-Line Options
+
+| Option | Default | Choices | Description |
+|--------|---------|---------|-------------|
+| `--venv` | None | str | Path to Python virtual environment (e.g., `/path/to/venv/bin/python3`) |
+| `--mode` | all | all, random_split, one_known, zero_shot | Which experiment mode to run |
+
+### Usage
+
+```bash
+# Run all experiments with default python3
+python3 run_experiments.py
+
+# Run all experiments with specific virtual environment
+python3 run_experiments.py --venv /home/akhil/hpcResearch/python_venvs/ml_analysis
+
+# Run only specific mode
+python3 run_experiments.py --mode random_split --venv /path/to/venv
+python3 run_experiments.py --mode one_known --venv /path/to/venv
+python3 run_experiments.py --mode zero_shot --venv /path/to/venv
+```
+
+### Output Organization
+
+Each experiment creates a subdirectory with `train.csv`, `test.csv`, and `output.log`:
+
+```
+random_split/
+├── random_split_0/
+│   ├── train.csv
+│   ├── test.csv
+│   └── output.log
+├── random_split_1/
+│   ├── train.csv
+│   ├── test.csv
+│   └── output.log
+└── ...
+
+one_known/
+├── one_known_amg_beatnik/
+│   ├── train.csv
+│   ├── test.csv
+│   └── output.log
+├── one_known_amg_beatnik_fiesta/
+│   ├── train.csv
+│   ├── test.csv
+│   └── output.log
+└── ...
+
+zero_shot/
+├── zero_shot_amg_beatnik/
+│   ├── train.csv
+│   ├── test.csv
+│   └── output.log
+├── zero_shot_amg_beatnik_fiesta/
+│   ├── train.csv
+│   ├── test.csv
+│   └── output.log
+└── ...
+```
+
+### Progress Tracking
+
+The script uses `tqdm` to display progress bars:
+- **random_split**: Progress over train/val ratios
+- **one_known/zero_shot**: Nested progress bars (outer: training set size, inner: combinations)
+
+### Reproducibility
 
 The pipeline uses fixed random seeds (SEED=42) for:
 - Data shuffling
