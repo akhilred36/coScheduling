@@ -99,10 +99,12 @@ class SlowdownDataset(Dataset):
         
         # Split data into train/val/test if requested
         import random
-        random.seed(self.seed)
         
         if mode == 'train' and val_split > 0:
-            random.shuffle(self.samples)
+            if self.eval_method != 'random_split':
+                random.seed(self.seed)
+                random.shuffle(self.samples)
+            
             if self.eval_method == 'random_split' and train_split < 1.0:
                 split_idx = int(len(self.samples) * train_split)
                 self.samples = self.samples[:split_idx]

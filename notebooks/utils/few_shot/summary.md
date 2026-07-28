@@ -158,7 +158,7 @@ The pipeline supports three evaluation methods, each with different train/test s
 
 #### 1. random_split
 
-Randomly splits pairs from training apps into train/validation/test sets.
+Splits pairs from training apps into train/validation/test sets deterministically (no random shuffling).
 
 **Train Mode**: Configurable percentage (default 80%) of pairs from training apps
 **Val Mode**: Remaining percentage (default 20%) of pairs from training apps for validation monitoring
@@ -420,7 +420,7 @@ The `SlowdownDataset` class supports three evaluation modes controlled by `eval_
 
 #### random_split
 - Filters pairs where both jobs are from training apps
-- Splits into train (80%) and val (20%) using random shuffle
+- Splits into train (80%) and val (20%) deterministically (no random shuffle)
 - Useful for debugging and hyperparameter tuning
 
 #### zero_shot
@@ -479,11 +479,11 @@ Each experiment creates a subdirectory with `train.csv`, `test.csv`, and `output
 
 ```
 random_split/
-├── random_split_0/
+├── random_split_0.5_0/
 │   ├── train.csv
 │   ├── test.csv
 │   └── output.log
-├── random_split_1/
+├── random_split_0.5_1/
 │   ├── train.csv
 │   ├── test.csv
 │   └── output.log
@@ -521,8 +521,9 @@ The script uses `tqdm` to display progress bars:
 ### Reproducibility
 
 The pipeline uses fixed random seeds (SEED=42) for:
-- Data shuffling
 - Model initialization
-- Train/val/test splitting
+- Train/val/test splitting in zero_shot and one_known modes
+
+For random_split mode, train/val/test splitting is deterministic and does not use random shuffling, ensuring consistent splits across runs without seed dependency.
 
 This ensures reproducible results across runs.

@@ -24,7 +24,7 @@ def run_random_split_experiments(venv_path=None):
     
     for ratio in tqdm(ratios, desc="Train/val ratios", position=0):
         for iter_idx in range(iterations):
-            save_dir = f"{base_dir}/random_split_{iter_idx}"
+            save_dir = f"{base_dir}/random_split_{ratio}_{iter_idx}"
             os.makedirs(save_dir, exist_ok=True)
             output_log = os.path.join(save_dir, "output.log")
             cmd = [
