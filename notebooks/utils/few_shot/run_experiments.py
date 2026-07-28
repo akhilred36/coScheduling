@@ -15,7 +15,7 @@ def run_random_split_experiments(venv_path=None):
     """Run random_split experiments with varying train/test ratios."""
     base_dir = "random_split"
     ratios = [0.5, 0.6, 0.7, 0.8, 0.9]
-    iterations = 10
+    iterations = 50
     
     if venv_path:
         python_cmd = os.path.join(venv_path, "bin", "python3")
