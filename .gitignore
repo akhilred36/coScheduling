@@ -22,3 +22,5 @@ apps/miniFE/kokkos/src/*.yaml
 **/*.mpiP
 rate_limit_data/*
 *.pt
+**/experiment_data/*
+**/*.gz
