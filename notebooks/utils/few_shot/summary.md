@@ -1,6 +1,6 @@
 # Slowdown Prediction Pipeline
 
-A few-shot learning system for predicting job slowdown in HPC environments using Deep Sets and Relation Networks.
+A few-shot learning system for predicting job slowdown in HPC environments using Deep Sets and Prototypical Networks.
 
 ## Overview
 
@@ -56,12 +56,12 @@ Each pair is doubled to create bidirectional samples:
 
 ## Model Architecture
 
-### Deep Sets + Relation Network
+### Deep Sets + Prototypical Network
 
 The model combines two key concepts:
 
 1. **Deep Sets**: Processes variable-sized input sets to create job prototypes
-2. **Relation Network**: Takes two job prototypes and predicts their interaction slowdown
+2. **Prototypical Network**: Takes two job prototypes and predicts their interaction slowdown
 
 ### Architecture Details
 
@@ -84,7 +84,7 @@ Processing:
      - Linear(16 → 16)
      - Creates fixed-dimension representation for each job
    
-  4. Relation Module:
+  4. Prototypical Module:
      - Concatenate: [c_A, c_B, b_A, b_B] → (batch, 40)
      - Linear(40 → 8) → ReLU → Dropout(0.4) → Linear(8 → 1)
      - Outputs predicted slowdown
@@ -239,49 +239,7 @@ This measures how well the model generalizes when **some context** from training
 
 **Note**: Samples are doubled for bidirectional prediction (A→B and B→A).
 
-## Results
-
-Results vary by evaluation method. Below are example results from `random_split` mode:
-
-### Training Performance
-
-| Metric | Value |
-|--------|-------|
-| Best Training Loss | 0.000632 |
-| Best Validation Loss | 0.000262 |
-| Early Stopping Epoch | 50/50 |
-
-### Final Evaluation Results (random_split mode)
-
-**Training Set** (held-out pairs from training apps):
-- MSE: 0.000191
-- MAE: 0.010640
-
-**Test Set** (held-out pairs from training apps):
-- MSE: 0.000191
-- MAE: 0.010640
-
-### Zero-Shot Evaluation Results (zero_shot mode)
-
-**Test Set** (unseen apps: kripke, quicksilver, tricount):
-- MSE: 0.002923
-- MAE: 0.040720
-
-**Generalization to Unseen Apps**: 
-- MSE ratio: 15.3x higher than train set
-- MAE ratio: 3.8x higher than train set
-
-### One-Known Evaluation Results (one_known mode)
-
-Evaluates partial generalization when some context from training apps is available. Results typically fall between random_split and zero_shot performance.
-
 ## Running the Pipeline
-
-### Prerequisites
-
-```bash
-source /home/akhil/hpcResearch/python_venvs/ml_analysis/bin/activate
-```
 
 ### Full Pipeline with Options
 
@@ -511,19 +469,3 @@ zero_shot/
 │   └── output.log
 └── ...
 ```
-
-### Progress Tracking
-
-The script uses `tqdm` to display progress bars:
-- **random_split**: Progress over train/val ratios
-- **one_known/zero_shot**: Nested progress bars (outer: training set size, inner: combinations)
-
-### Reproducibility
-
-The pipeline uses fixed random seeds (SEED=42) for:
-- Model initialization
-- Train/val/test splitting in zero_shot and one_known modes
-
-For random_split mode, train/val/test splitting is deterministic and does not use random shuffling, ensuring consistent splits across runs without seed dependency.
-
-This ensures reproducible results across runs.
