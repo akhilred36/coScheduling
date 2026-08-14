@@ -52,8 +52,13 @@ def compute_metrics(frame: pd.DataFrame) -> dict[str, float]:
 
 def metrics_by_method(predictions: pd.DataFrame) -> pd.DataFrame:
     rows = []
-    for method, group in predictions.groupby("method", sort=False):
-        rows.append({"method": method, **compute_metrics(group)})
+    group_columns = ["method"]
+    if "evaluation_method" in predictions:
+        group_columns.insert(0, "evaluation_method")
+    for keys, group in predictions.groupby(group_columns, sort=False):
+        if not isinstance(keys, tuple):
+            keys = (keys,)
+        rows.append({**dict(zip(group_columns, keys)), **compute_metrics(group)})
     return pd.DataFrame(rows)
 
 
@@ -63,6 +68,8 @@ def self_pair_averaged(predictions: pd.DataFrame) -> pd.DataFrame:
     if self_pairs.empty:
         return predictions.copy()
     group_columns = ["method", "pair_row_id", "victim_id", "aggressor_id"]
+    if "evaluation_method" in predictions:
+        group_columns.insert(0, "evaluation_method")
     numeric = [
         column
         for column in self_pairs.select_dtypes(include=[np.number]).columns
@@ -75,11 +82,17 @@ def self_pair_averaged(predictions: pd.DataFrame) -> pd.DataFrame:
 
 def per_victim_metrics(predictions: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     rows = []
-    for (method, victim), group in predictions.groupby(["method", "victim_id"]):
-        rows.append({"method": method, "victim_id": victim, **compute_metrics(group)})
+    group_columns = ["method", "victim_id"]
+    if "evaluation_method" in predictions:
+        group_columns.insert(0, "evaluation_method")
+    for keys, group in predictions.groupby(group_columns):
+        rows.append({**dict(zip(group_columns, keys)), **compute_metrics(group)})
     detailed = pd.DataFrame(rows)
-    macro = detailed.groupby("method", as_index=False)[METRIC_COLUMNS].mean()
-    macro.insert(1, "victim_id", "macro_average")
+    macro_columns = ["method"]
+    if "evaluation_method" in predictions:
+        macro_columns.insert(0, "evaluation_method")
+    macro = detailed.groupby(macro_columns, as_index=False)[METRIC_COLUMNS].mean()
+    macro.insert(len(macro_columns), "victim_id", "macro_average")
     return detailed, macro
 
 

@@ -1,4 +1,8 @@
 outputs/
 audit_outputs/**/*.csv
+audit_outputs/**/requested_run_config.json
+audit_outputs/**/data_validation_summary.json
+audit_outputs/**/selection.json
+audit_outputs/**/run_report.json
 __pycache__/
 tests/__pycache__/

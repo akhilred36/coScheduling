@@ -491,7 +491,27 @@ with victim `A` and aggressor `B`:
 Explicitly perform the reverse prediction `B -> A`; do not infer it by
 symmetry because victim and aggressor roles are different.
 
-### 12.1 Self-pairs
+### 12.1 Endpoint-familiarity tiers
+
+App-App evaluation supports three disjoint endpoint-familiarity tiers. Pair
+eligibility is assigned on canonical pair rows before directional expansion:
+
+- `random_split`: all applications may contribute App-Inhibitor fitting rows;
+  evaluate all App-App rows. The compatibility name does not imply that this
+  pipeline trains on an App-App split.
+- `one_known`: fit only on a configured application subset; evaluate pairs
+  with exactly one fitted and one unfitted endpoint.
+- `zero_shot`: use the same restricted fit; evaluate pairs with two unfitted
+  endpoints.
+
+For restricted fits, unfitted application profiles are excluded from model
+scaler fitting and their App-Inhibitor responses are excluded from parameter
+and model-selection fitting. Their measured App-Inhibitor responses remain
+available as inference anchors because the delta-response task assumes victim
+anchor measurements at prediction time. App-App outcomes remain sealed until
+all fitting and selection are complete in every tier.
+
+### 12.2 Self-pairs
 
 For a self-pair, victim and aggressor profiles are identical. The two measured
 outcomes in one self-pair row may nevertheless differ because they are two

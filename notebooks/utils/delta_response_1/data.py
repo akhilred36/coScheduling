@@ -77,6 +77,83 @@ class TrainingData:
     duplicate_keys: pd.DataFrame
 
 
+EVALUATION_METHODS = {"random_split", "one_known", "zero_shot"}
+
+
+def subset_training_data(data: TrainingData, training_apps: list[str]) -> TrainingData:
+    """Restrict model-fitting inputs to an explicit set of applications."""
+    requested = list(dict.fromkeys(str(value) for value in training_apps))
+    available = set(data.jobs["job_id"].astype(str))
+    unknown = sorted(set(requested) - available)
+    if unknown:
+        raise ValueError(f"Training applications are missing from jobs.csv: {unknown}")
+    if len(requested) < 2:
+        raise ValueError("At least two training applications are required")
+    selected = set(requested)
+    jobs = data.jobs[data.jobs["job_id"].astype(str).isin(selected)].copy()
+    responses = data.responses[
+        data.responses["job_id"].astype(str).isin(selected)
+    ].copy()
+    missing_responses = sorted(selected - set(responses["job_id"].astype(str)))
+    if missing_responses:
+        raise ValueError(
+            "Training applications have no valid App-Inhibitor responses: "
+            f"{missing_responses}"
+        )
+    rejected = data.rejected_responses.copy()
+    if "job_id" in rejected:
+        rejected = rejected[rejected["job_id"].astype(str).isin(selected)]
+    duplicates = data.duplicate_keys.copy()
+    if "job_id" in duplicates:
+        duplicates = duplicates[duplicates["job_id"].astype(str).isin(selected)]
+    return TrainingData(
+        jobs.reset_index(drop=True),
+        data.inhibitors.copy(),
+        responses.reset_index(drop=True),
+        rejected.reset_index(drop=True),
+        duplicates.reset_index(drop=True),
+    )
+
+
+def select_evaluation_pairs(
+    pairs: pd.DataFrame,
+    known_apps: list[str] | set[str],
+    evaluation_method: str,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Select canonical App-App rows for one endpoint-familiarity tier."""
+    if evaluation_method not in EVALUATION_METHODS:
+        raise ValueError(
+            f"evaluation_method must be one of {sorted(EVALUATION_METHODS)}"
+        )
+    known = {str(value) for value in known_apps}
+    left_known = pairs["jobA_id"].astype(str).isin(known)
+    right_known = pairs["jobB_id"].astype(str).isin(known)
+    if evaluation_method == "random_split":
+        included = left_known & right_known
+    elif evaluation_method == "one_known":
+        included = left_known ^ right_known
+    else:
+        included = ~left_known & ~right_known
+
+    manifest = pairs[
+        ["pair_row_id", "pair_cluster_id", "jobA_id", "jobB_id"]
+    ].copy()
+    manifest["evaluation_method"] = evaluation_method
+    manifest["jobA_known"] = left_known.to_numpy(dtype=bool)
+    manifest["jobB_known"] = right_known.to_numpy(dtype=bool)
+    manifest["known_endpoint_count"] = (
+        left_known.astype(int) + right_known.astype(int)
+    ).to_numpy()
+    manifest["included"] = included.to_numpy(dtype=bool)
+
+    selected = pairs.loc[included].copy().reset_index(drop=True)
+    if selected.empty:
+        raise ValueError(
+            f"No App-App rows are eligible for evaluation_method={evaluation_method!r}"
+        )
+    return selected, manifest
+
+
 class ProfileScaler:
     """Transforms physical profiles and standardizes with fold-local statistics."""
 

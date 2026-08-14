@@ -17,6 +17,8 @@ The implementation provides:
 - Deterministic grouped one-standard-error aggregation selection.
 - Finite-range validation, uncertainty diagnostics, and paired cluster
   bootstrap comparisons.
+- Three endpoint-familiarity evaluation tiers: `random_split`, `one_known`,
+  and `zero_shot`.
 
 See `schematic.md` for the extended research specification.
 
@@ -80,6 +82,39 @@ same `pair_cluster_id` for paired inference and bootstrap resampling. Duplicate
 unordered pairs, including reversed duplicates, are rejected. Slowdowns must
 be finite and at least `1`.
 
+## Three-Tier Evaluation
+
+The tier names are compatible with the neighboring `few_shot` pipeline, but
+the protocol is adapted to this model's App-Inhibitor-only training objective:
+
+- `random_split`: every application and App-Inhibitor response may be used for
+  model fitting. Evaluation contains all validated App-App interactions. The
+  historical name is retained even though App-App outcomes are never split or
+  used for fitting in this pipeline.
+- `one_known`: only configured training applications influence model fitting
+  and scaler statistics. Evaluation contains canonical pairs with exactly one
+  training application and one unknown application.
+- `zero_shot`: uses the same restricted fit as `one_known`, but evaluation
+  contains only pairs where both applications are unknown during fitting.
+
+For `one_known` and `zero_shot`, unknown applications' measured App-Inhibitor
+responses remain available as inference anchors. This matches the intended
+delta-response inference setting and the response-set inputs used by the
+reference `few_shot` model. Unknown application profiles and responses are
+excluded from parameter, epoch, aggregation, and model-scaler fitting.
+
+The restricted tiers accept a comma-separated fitting set through
+`--training-apps`. When that option is omitted for the repository's standard
+dataset, the pipeline uses `amg`, `beatnik`, `fiesta`, `laghos`, `lammps`,
+`minife`, and `minivite`. Nonstandard datasets must provide the fitting set
+explicitly. `random_split` always resolves every application as a training
+application and rejects a partial fitting set.
+
+Pair eligibility is decided on canonical pair rows before directional
+expansion. The two directional outcomes therefore cannot cross tiers. The
+pipeline writes `evaluation_pair_manifest.csv` with endpoint-known flags and
+the inclusion decision for every pair row.
+
 ## Target Semantics
 
 The available slowdown is a clipped observation:
@@ -126,8 +161,10 @@ the selected representation.
 
 During crossed validation, a fold-local model scaler is fitted only to training
 application profiles and retained inhibitor profiles. It excludes both the
-held-out victim and the held-out inhibitor block. Final model scalers are fitted
-to all profiles after selection.
+held-out victim and the held-out inhibitor block. After selection, final model
+scalers use every inhibitor profile and only the application profiles allowed
+to influence the selected tier. Withheld application profiles are transformed
+using those frozen statistics at inference and never affect scaler fitting.
 
 Kernel and OOD distances do not use model embeddings or fold-local scaler
 coordinates. They use a separate base-feature scaler fitted once to inhibitor
@@ -310,7 +347,8 @@ An invocation runs these stages in order:
 3. Build deterministic inhibitor blocks.
 4. Run crossed validation for every model candidate, model kind, and CV seed.
 5. Select model configurations, model-specific epochs, and aggregations.
-6. Fit final low-rank, generic, and absolute models on all valid training rows.
+6. Fit final low-rank, generic, and absolute models on all valid rows from the
+   applications allowed by the selected evaluation tier.
 7. Stop and write a complete report when `--skip-holdout` is active.
 8. Otherwise load the supplied pair CSV, evaluate fitted models, and write
    predictions, metrics, and paired bootstrap reports. No fitting follows pair
@@ -318,11 +356,12 @@ An invocation runs these stages in order:
 
 ## Requirements
 
-Run all commands from this directory using the `hpcResearch` Conda environment:
+Run all commands from this directory using the project Python virtual
+environment. This machine does not require or use Conda:
 
 ```bash
 cd notebooks/utils/delta_response_1
-conda run -n hpcResearch python --version
+/home/akhil/hpcResearch/python_venvs/ml_analysis/bin/python --version
 ```
 
 The environment must provide NumPy, pandas, SciPy, scikit-learn, and PyTorch.
@@ -336,7 +375,7 @@ This is the safe mode for real training data. It performs validation, selection,
 and final model fitting without opening any pair CSV:
 
 ```bash
-conda run -n hpcResearch python pipeline.py \
+/home/akhil/hpcResearch/python_venvs/ml_analysis/bin/python pipeline.py \
   --output-dir audit_outputs/app_inhib_only \
   --skip-holdout
 ```
@@ -349,7 +388,7 @@ seeds, four inhibitor blocks, and up to 80 epochs per fold/model.
 Use this for a faster integration check on the real App-Inhibitor inputs:
 
 ```bash
-conda run -n hpcResearch python pipeline.py \
+/home/akhil/hpcResearch/python_venvs/ml_analysis/bin/python pipeline.py \
   --output-dir audit_outputs/app_inhib_dev \
   --skip-holdout \
   --cv-seeds 0 --final-seeds 0 \
@@ -363,13 +402,13 @@ conda run -n hpcResearch python pipeline.py \
 Generate deterministic synthetic profiles, responses, and pair outcomes:
 
 ```bash
-conda run -n hpcResearch python audit_outputs/make_synthetic_data.py
+/home/akhil/hpcResearch/python_venvs/ml_analysis/bin/python audit_outputs/make_synthetic_data.py
 ```
 
 Run the complete pipeline using only those synthetic files:
 
 ```bash
-conda run -n hpcResearch python pipeline.py \
+/home/akhil/hpcResearch/python_venvs/ml_analysis/bin/python pipeline.py \
   --jobs-csv audit_outputs/synthetic_data/jobs.csv \
   --inhibitors-csv audit_outputs/synthetic_data/inhibitors.csv \
   --job-inh-csv audit_outputs/synthetic_data/job_inh.csv \
@@ -382,6 +421,22 @@ conda run -n hpcResearch python pipeline.py \
   --bootstrap-samples 20
 ```
 
+Run the restricted tiers by specifying the fitting applications:
+
+```bash
+/home/akhil/hpcResearch/python_venvs/ml_analysis/bin/python pipeline.py \
+  --eval-method one_known \
+  --training-apps amg,beatnik,fiesta,laghos,lammps,minife,minivite \
+  --pair-csv /path/to/new_untouched_pair.csv \
+  --output-dir audit_outputs/one_known
+
+/home/akhil/hpcResearch/python_venvs/ml_analysis/bin/python pipeline.py \
+  --eval-method zero_shot \
+  --training-apps amg,beatnik,fiesta,laghos,lammps,minife,minivite \
+  --pair-csv /path/to/new_untouched_pair.csv \
+  --output-dir audit_outputs/zero_shot
+```
+
 Never use the historical real pair data as a smoke input.
 
 ### Future Evaluation With A New Holdout
@@ -390,7 +445,7 @@ After collecting a genuinely untouched App-App dataset and fixing every choice
 without using its outcomes, run:
 
 ```bash
-conda run -n hpcResearch python pipeline.py \
+/home/akhil/hpcResearch/python_venvs/ml_analysis/bin/python pipeline.py \
   --pair-csv /path/to/new_untouched_pair.csv \
   --output-dir audit_outputs/new_holdout_evaluation
 ```
@@ -406,6 +461,8 @@ configuration can override them:
 ```json
 {
   "inhibitor_blocks": 4,
+  "evaluation_method": "random_split",
+  "training_apps": null,
   "clustering_algorithm": "kmeans",
   "clustering_seed": 1701,
   "cv_seeds": [0, 1, 2, 3, 4],
@@ -436,7 +493,7 @@ configuration can override them:
 Run with the configuration:
 
 ```bash
-conda run -n hpcResearch python pipeline.py \
+/home/akhil/hpcResearch/python_venvs/ml_analysis/bin/python pipeline.py \
   --config audit_outputs/config.json \
   --output-dir audit_outputs/configured_run \
   --skip-holdout
@@ -452,6 +509,8 @@ The following command-line options override corresponding JSON values:
 --patience COUNT
 --batches-per-epoch COUNT
 --bootstrap-samples COUNT
+--eval-method {random_split,one_known,zero_shot}
+--training-apps APP_ID,APP_ID,...
 ```
 
 Input and execution options are:
@@ -484,13 +543,16 @@ Every run writes:
 - `validation_distance_reference.csv`: common-coordinate OOD distances.
 - `selection.json`: selected model configurations, epochs, and aggregations.
 - `checkpoints/*.pt`: final model state, model configuration, scaler, seed, and
-  selected epoch count.
+  selected epoch count, including the fitting-application list.
 - `run_report.json`: completion status, holdout state, calibration provenance,
-  target semantics, selected choices, and runtime metadata.
+  target semantics, endpoint-familiarity protocol, fitting/unknown application
+  lists, evaluated pair counts, selected choices, and runtime metadata.
 
 Runs that evaluate a synthetic or new App-App holdout additionally write:
 
 - `directional_predictions.csv`: ensemble predictions and diagnostics.
+- `evaluation_pair_manifest.csv`: canonical pair eligibility, known-endpoint
+  flags, and inclusion decisions for the selected tier.
 - `seed_predictions.csv`: predictions from each model seed.
 - `metrics_repeated_self.csv`: metrics retaining both self-pair measurements.
 - `metrics_self_averaged.csv`: metrics after self-pair outcome averaging.
@@ -509,20 +571,22 @@ fields are finite and validated against the observed target support.
 Run the implementation and regression suite:
 
 ```bash
-conda run -n hpcResearch python -m unittest discover -s tests -v
+/home/akhil/hpcResearch/python_venvs/ml_analysis/bin/python -m unittest discover -s tests -v
 ```
 
 Run the independent audit checks:
 
 ```bash
-conda run -n hpcResearch python audit_outputs/audit_tests.py
+/home/akhil/hpcResearch/python_venvs/ml_analysis/bin/python audit_outputs/audit_tests.py
 ```
 
 The tests cover crossed-fold exclusions, fixed validation queries, sampler
 behavior with replicates, latent potential invariants, common-coordinate OOD
 distances, clipped prediction support, finite-range guards, weighted and
 nonlinear diagnostics, shared low-rank checkpoints, paired bootstrap draws,
-pair uniqueness, missing profiles, and holdout-free completion.
+pair uniqueness, missing profiles, endpoint-tier disjointness, restricted
+training/scaler inputs, full inference-anchor availability, pair-load ordering,
+and holdout-free completion.
 
 ## Limitations
 

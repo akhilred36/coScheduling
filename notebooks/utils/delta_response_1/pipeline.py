@@ -20,6 +20,7 @@ from sklearn.cluster import KMeans
 
 from data import (
     BASE_FEATURES,
+    EVALUATION_METHODS,
     ProfileScaler,
     TrainingData,
     expand_directional_pairs,
@@ -27,6 +28,8 @@ from data import (
     load_pair_holdout,
     load_training_data,
     observe_log_slowdown,
+    select_evaluation_pairs,
+    subset_training_data,
 )
 from inference import (
     OODConfig,
@@ -51,6 +54,15 @@ from training import (
 
 
 DEFAULT_DATA_DIR = Path(__file__).resolve().parents[1] / "few_shot" / "data"
+DEFAULT_TRAINING_APPS = [
+    "amg",
+    "beatnik",
+    "fiesta",
+    "laghos",
+    "lammps",
+    "minife",
+    "minivite",
+]
 
 
 @dataclass
@@ -65,6 +77,8 @@ class ModelConfig:
 
 @dataclass
 class RunConfig:
+    evaluation_method: str = "random_split"
+    training_apps: list[str] | None = None
     inhibitor_blocks: int = 4
     clustering_algorithm: str = "kmeans"
     clustering_seed: int = 1701
@@ -112,6 +126,36 @@ def resolve_device(requested: str) -> torch.device:
     if device.type == "cuda" and not torch.cuda.is_available():
         raise RuntimeError("CUDA was requested but is unavailable")
     return device
+
+
+def resolve_training_apps(data: TrainingData, config: RunConfig) -> list[str]:
+    """Resolve the applications allowed to influence fitted model parameters."""
+    available = list(data.jobs["job_id"].astype(str))
+    if config.evaluation_method == "random_split":
+        if config.training_apps is not None and set(config.training_apps) != set(available):
+            raise ValueError(
+                "random_split requires every application to be available for training"
+            )
+        return available
+    requested = config.training_apps
+    if requested is None:
+        if set(DEFAULT_TRAINING_APPS).issubset(available):
+            requested = DEFAULT_TRAINING_APPS
+        else:
+            raise ValueError(
+                "--training-apps is required for one_known and zero_shot on this dataset"
+            )
+    resolved = list(dict.fromkeys(str(value) for value in requested))
+    unknown = sorted(set(resolved) - set(available))
+    if unknown:
+        raise ValueError(f"Unknown training applications: {unknown}")
+    if len(resolved) < 2:
+        raise ValueError("At least two training applications are required")
+    if set(resolved) == set(available):
+        raise ValueError(
+            f"{config.evaluation_method} requires at least one unknown application"
+        )
+    return resolved
 
 
 def build_inhibitor_blocks(data: TrainingData, config: RunConfig) -> pd.DataFrame:
@@ -732,6 +776,7 @@ def train_final_models(
                     "kind": kind,
                     "seed": seed,
                     "epochs": final_epochs[kind],
+                    "training_apps": data.jobs["job_id"].astype(str).tolist(),
                     "model_config": asdict(model_configs[kind]),
                     "scaler": scalers[kind].state_dict(),
                     "model_state_dict": model.state_dict(),
@@ -779,8 +824,15 @@ def evaluate_holdout(
     distance_reference: np.ndarray,
     distance_scaler: ProfileScaler,
     device: torch.device,
+    evaluation_method: str = "random_split",
+    known_apps: list[str] | set[str] | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     directional = expand_directional_pairs(pairs)
+    known = (
+        set(data.jobs["job_id"].astype(str))
+        if known_apps is None
+        else {str(value) for value in known_apps}
+    )
     profiles = {
         kind: profile_maps(data.jobs, data.inhibitors, scaler)
         for kind, scaler in scalers.items()
@@ -840,12 +892,17 @@ def evaluate_holdout(
                 reference,
             )
             base = {
+                "evaluation_method": evaluation_method,
                 "seed": seed,
                 "pair_row_id": int(pair["pair_row_id"]),
                 "pair_cluster_id": int(pair["pair_cluster_id"]),
                 "direction": pair["direction"],
                 "victim_id": victim_id,
                 "aggressor_id": aggressor_id,
+                "victim_known": victim_id in known,
+                "aggressor_known": aggressor_id in known,
+                "known_endpoint_count": int(victim_id in known)
+                + int(aggressor_id in known),
                 "true_slowdown": float(pair["true_slowdown"]),
             }
 
@@ -957,12 +1014,16 @@ def evaluate_holdout(
         seed_predictions["predicted_log_slowdown"].to_numpy()
     )
     keys = [
+        "evaluation_method",
         "method",
         "pair_row_id",
         "pair_cluster_id",
         "direction",
         "victim_id",
         "aggressor_id",
+        "victim_known",
+        "aggressor_known",
+        "known_endpoint_count",
         "true_slowdown",
     ]
     diagnostic_columns = [
@@ -1007,6 +1068,10 @@ def write_evaluation_reports(
     config: RunConfig,
     output_dir: Path,
 ) -> None:
+    evaluation_methods = predictions["evaluation_method"].drop_duplicates().tolist()
+    if len(evaluation_methods) != 1:
+        raise ValueError("Each evaluation report must contain exactly one evaluation method")
+    evaluation_method = evaluation_methods[0]
     predictions.to_csv(output_dir / "directional_predictions.csv", index=False)
     seed_predictions.to_csv(output_dir / "seed_predictions.csv", index=False)
     metrics_by_method(predictions).to_csv(output_dir / "metrics_repeated_self.csv", index=False)
@@ -1015,21 +1080,34 @@ def write_evaluation_reports(
     per_victim, macro = per_victim_metrics(predictions)
     per_victim.to_csv(output_dir / "metrics_per_victim.csv", index=False)
     macro.to_csv(output_dir / "metrics_macro_victim.csv", index=False)
-    cluster_bootstrap(
+    bootstrap = cluster_bootstrap(
         predictions,
         samples=config.bootstrap_samples,
         seed=config.bootstrap_seed,
-    ).to_csv(output_dir / "cluster_bootstrap_confidence_intervals.csv", index=False)
-    paired_cluster_bootstrap_differences(
+    )
+    bootstrap.insert(0, "evaluation_method", evaluation_method)
+    bootstrap.to_csv(output_dir / "cluster_bootstrap_confidence_intervals.csv", index=False)
+    differences = paired_cluster_bootstrap_differences(
         predictions,
         samples=config.bootstrap_samples,
         seed=config.bootstrap_seed,
-    ).to_csv(output_dir / "paired_method_differences.csv", index=False)
+    )
+    differences.insert(0, "evaluation_method", evaluation_method)
+    differences.to_csv(output_dir / "paired_method_differences.csv", index=False)
 
     seed_rows = []
-    for (method, seed), group in seed_predictions.groupby(["method", "seed"]):
+    for (evaluation_method, method, seed), group in seed_predictions.groupby(
+        ["evaluation_method", "method", "seed"]
+    ):
         result = metrics_by_method(group.assign(method=method)).iloc[0].to_dict()
-        seed_rows.append({"method": method, "seed": seed, **result})
+        seed_rows.append(
+            {
+                "evaluation_method": evaluation_method,
+                "method": method,
+                "seed": seed,
+                **result,
+            }
+        )
     pd.DataFrame(seed_rows).to_csv(output_dir / "metrics_by_seed.csv", index=False)
 
 
@@ -1052,26 +1130,49 @@ def run(args: argparse.Namespace) -> None:
         config.batches_per_epoch = args.batches_per_epoch
     if args.bootstrap_samples is not None:
         config.bootstrap_samples = args.bootstrap_samples
+    if getattr(args, "eval_method", None) is not None:
+        config.evaluation_method = args.eval_method
+    if getattr(args, "training_apps", None) is not None:
+        config.training_apps = [
+            value.strip()
+            for value in args.training_apps.split(",")
+            if value.strip()
+        ]
+    if config.evaluation_method not in EVALUATION_METHODS:
+        raise ValueError(
+            f"evaluation_method must be one of {sorted(EVALUATION_METHODS)}"
+        )
     device = resolve_device(config.device)
-    write_json(output_dir / "requested_run_config.json", asdict(config))
 
     print("Loading and validating App-Inhibitor training data (pair.csv remains sealed)")
-    data = load_training_data(
+    full_data = load_training_data(
         args.jobs_csv,
         args.inhibitors_csv,
         args.job_inh_csv,
         quarantine_dir=output_dir,
     )
+    training_apps = resolve_training_apps(full_data, config)
+    config.training_apps = training_apps
+    write_json(output_dir / "requested_run_config.json", asdict(config))
+    data = subset_training_data(full_data, training_apps)
+    unknown_apps = sorted(
+        set(full_data.jobs["job_id"].astype(str)) - set(training_apps)
+    )
     summary = {
-        "applications": len(data.jobs),
-        "inhibitors": len(data.inhibitors),
-        "raw_app_inhibitor_rows": len(data.responses) + len(data.rejected_responses),
-        "valid_app_inhibitor_rows": len(data.responses),
-        "rejected_app_inhibitor_rows": len(data.rejected_responses),
-        "duplicate_key_rows": len(data.duplicate_keys),
-        "censored_floor_rows": int(data.responses["is_censored"].sum()),
-        "anchors_per_application": data.responses.groupby("job_id").size().to_dict(),
-        "uncensored_anchors_per_application": data.responses.groupby("job_id")[
+        "applications": len(full_data.jobs),
+        "training_application_count": len(training_apps),
+        "training_applications": training_apps,
+        "unknown_applications": unknown_apps,
+        "inhibitors": len(full_data.inhibitors),
+        "raw_app_inhibitor_rows": len(full_data.responses)
+        + len(full_data.rejected_responses),
+        "valid_app_inhibitor_rows": len(full_data.responses),
+        "model_fitting_app_inhibitor_rows": len(data.responses),
+        "rejected_app_inhibitor_rows": len(full_data.rejected_responses),
+        "duplicate_key_rows": len(full_data.duplicate_keys),
+        "censored_floor_rows": int(full_data.responses["is_censored"].sum()),
+        "anchors_per_application": full_data.responses.groupby("job_id").size().to_dict(),
+        "uncensored_anchors_per_application": full_data.responses.groupby("job_id")[
             "is_censored"
         ].apply(lambda values: int((~values).sum())).to_dict(),
     }
@@ -1128,6 +1229,14 @@ def run(args: argparse.Namespace) -> None:
 
     common_report = {
         "status": "complete",
+        "evaluation_protocol": {
+            "method": config.evaluation_method,
+            "training_applications": training_apps,
+            "unknown_applications": unknown_apps,
+            "unknown_application_anchors_available_at_inference": True,
+            "app_app_outcomes_used_for_fitting": False,
+            "one_known_definition": "exactly_one_known_endpoint",
+        },
         "model_seed_count": len(config.final_seeds),
         "elapsed_seconds": time.time() - started,
         "device": str(device),
@@ -1149,6 +1258,7 @@ def run(args: argparse.Namespace) -> None:
             "holdout_opened_after_final_training": False,
             "holdout_evaluation": "skipped",
             "pair_rows": None,
+            "evaluated_pair_rows": None,
             "directional_outcomes": None,
         }
         write_json(output_dir / "run_report.json", report)
@@ -1156,17 +1266,26 @@ def run(args: argparse.Namespace) -> None:
         return
 
     # This is the sole point where pair.csv is opened. No fitting follows it.
-    print("Opening sealed pair.csv for one final App-App evaluation")
-    pairs = load_pair_holdout(args.pair_csv, data.jobs)
+    print(
+        "Opening sealed pair.csv for one final "
+        f"{config.evaluation_method} App-App evaluation"
+    )
+    pairs = load_pair_holdout(args.pair_csv, full_data.jobs)
+    evaluation_pairs, pair_manifest = select_evaluation_pairs(
+        pairs, training_apps, config.evaluation_method
+    )
+    pair_manifest.to_csv(output_dir / "evaluation_pair_manifest.csv", index=False)
     predictions, seed_predictions = evaluate_holdout(
-        data,
-        pairs,
+        full_data,
+        evaluation_pairs,
         scalers,
         models,
         aggregations,
         distance_reference,
         distance_scaler,
         device,
+        evaluation_method=config.evaluation_method,
+        known_apps=training_apps,
     )
     write_evaluation_reports(predictions, seed_predictions, config, output_dir)
     report = {
@@ -1174,7 +1293,8 @@ def run(args: argparse.Namespace) -> None:
         "holdout_opened_after_final_training": True,
         "holdout_evaluation": "completed",
         "pair_rows": len(pairs),
-        "directional_outcomes": len(pairs) * 2,
+        "evaluated_pair_rows": len(evaluation_pairs),
+        "directional_outcomes": len(evaluation_pairs) * 2,
         "elapsed_seconds": time.time() - started,
     }
     write_json(output_dir / "run_report.json", report)
@@ -1198,6 +1318,19 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--output-dir", type=Path, default=Path("outputs"))
     parser.add_argument("--config", type=Path, help="JSON RunConfig overrides")
+    parser.add_argument(
+        "--eval-method",
+        "--eval_method",
+        dest="eval_method",
+        choices=sorted(EVALUATION_METHODS),
+        help="App-App endpoint-familiarity evaluation tier",
+    )
+    parser.add_argument(
+        "--training-apps",
+        "--training_apps",
+        dest="training_apps",
+        help="comma-separated fitting applications for one_known or zero_shot",
+    )
     parser.add_argument("--cv-seeds", type=int, nargs="+")
     parser.add_argument("--final-seeds", type=int, nargs="+")
     parser.add_argument("--inhibitor-blocks", type=int)

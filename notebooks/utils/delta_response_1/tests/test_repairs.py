@@ -26,6 +26,8 @@ from data import (
     load_pair_holdout,
     log_slowdown_to_slowdown,
     observe_log_slowdown,
+    select_evaluation_pairs,
+    subset_training_data,
 )
 from model import GenericPotential
 from training import EpisodeSampler, censored_absolute_huber_loss, censored_delta_huber_loss
@@ -119,6 +121,181 @@ class CensoringAndBoundaryTests(unittest.TestCase):
             pairs.to_csv(path, index=False)
             with self.assertRaisesRegex(ValueError, "duplicate unordered pairs"):
                 load_pair_holdout(path, jobs)
+
+
+class EvaluationProtocolTests(unittest.TestCase):
+    def test_endpoint_tiers_are_canonical_and_disjoint(self) -> None:
+        rows = []
+        pair_id = 0
+        for left_index, left in enumerate(["a", "b", "c", "d"]):
+            for right in ["a", "b", "c", "d"][left_index:]:
+                rows.append([pair_id, pair_id, left, right, 1.1, 1.2])
+                pair_id += 1
+        pairs = pd.DataFrame(
+            rows,
+            columns=[
+                "pair_row_id",
+                "pair_cluster_id",
+                "jobA_id",
+                "jobB_id",
+                "slowdown_A",
+                "slowdown_B",
+            ],
+        )
+        selected = {}
+        expected_counts = {
+            "random_split": {2},
+            "one_known": {1},
+            "zero_shot": {0},
+        }
+        for method in expected_counts:
+            frame, manifest = select_evaluation_pairs(pairs, {"a", "b"}, method)
+            selected[method] = set(frame["pair_row_id"])
+            included = manifest[manifest["included"]]
+            self.assertEqual(
+                set(included["known_endpoint_count"]), expected_counts[method]
+            )
+            expanded = pipeline.expand_directional_pairs(frame)
+            self.assertTrue(
+                (expanded.groupby("pair_row_id")["direction"].nunique() == 2).all()
+            )
+        self.assertFalse(selected["random_split"] & selected["one_known"])
+        self.assertFalse(selected["random_split"] & selected["zero_shot"])
+        self.assertFalse(selected["one_known"] & selected["zero_shot"])
+
+    def test_training_subset_excludes_unknown_profiles_and_responses(self) -> None:
+        data, _ = crossed_data()
+        subset = subset_training_data(data, ["v0", "v2"])
+        self.assertEqual(set(subset.jobs["job_id"]), {"v0", "v2"})
+        self.assertEqual(set(subset.responses["job_id"]), {"v0", "v2"})
+        self.assertEqual(set(subset.inhibitors["inhib_id"]), {"i0", "i1", "i2", "i3"})
+
+    def test_random_split_resolves_every_application_for_training(self) -> None:
+        data, _ = crossed_data()
+        config = pipeline.RunConfig(evaluation_method="random_split")
+        self.assertEqual(
+            pipeline.resolve_training_apps(data, config), ["v0", "v1", "v2"]
+        )
+        config.training_apps = ["v0", "v1"]
+        with self.assertRaisesRegex(ValueError, "every application"):
+            pipeline.resolve_training_apps(data, config)
+
+    def test_restricted_modes_fit_known_apps_and_infer_with_full_data(self) -> None:
+        data, blocks = crossed_data()
+        pair_rows = []
+        pair_id = 0
+        job_ids = data.jobs["job_id"].tolist()
+        for left_index, left in enumerate(job_ids):
+            for right in job_ids[left_index:]:
+                pair_rows.append([pair_id, pair_id, left, right, 1.1, 1.2])
+                pair_id += 1
+        pairs = pd.DataFrame(
+            pair_rows,
+            columns=[
+                "pair_row_id",
+                "pair_cluster_id",
+                "jobA_id",
+                "jobB_id",
+                "slowdown_A",
+                "slowdown_B",
+            ],
+        )
+        distance_scaler = ProfileScaler("base").fit(data.inhibitors)
+        model_configs = {
+            kind: pipeline.ModelConfig()
+            for kind in ["low_rank", "generic", "absolute"]
+        }
+        folds = pd.DataFrame(
+            [
+                {
+                    "model_kind": kind,
+                    "config_id": 0,
+                    "best_validation": 0.1,
+                }
+                for kind in model_configs
+            ]
+        )
+        events = []
+
+        def fake_crossed(training_data, *_args):
+            events.append(("crossed", set(training_data.jobs["job_id"])))
+            return (
+                model_configs,
+                {},
+                {kind: 1 for kind in model_configs},
+                folds,
+                np.asarray([1.0]),
+                distance_scaler,
+            )
+
+        def fake_final(training_data, *_args):
+            events.append(("final", set(training_data.jobs["job_id"])))
+            return {}, {}
+
+        def fake_pair_load(*_args):
+            events.append(("pair_load", None))
+            return pairs
+
+        def fake_evaluate(full_data, selected_pairs, *_args, **kwargs):
+            events.append(
+                (
+                    "evaluate",
+                    set(full_data.responses["job_id"]),
+                    len(selected_pairs),
+                    kwargs["evaluation_method"],
+                    set(kwargs["known_apps"]),
+                )
+            )
+            return pd.DataFrame(), pd.DataFrame()
+
+        with tempfile.TemporaryDirectory(dir=AUDIT_DIR) as directory:
+            for method, expected_pairs in [("one_known", 2), ("zero_shot", 1)]:
+                args = argparse.Namespace(
+                    jobs_csv=Path("unused-jobs.csv"),
+                    inhibitors_csv=Path("unused-inhibitors.csv"),
+                    job_inh_csv=Path("unused-responses.csv"),
+                    pair_csv=Path("unused-pairs.csv"),
+                    output_dir=Path(directory) / method,
+                    config=None,
+                    eval_method=method,
+                    training_apps="v0,v1",
+                    cv_seeds=[0],
+                    final_seeds=[0],
+                    inhibitor_blocks=2,
+                    max_epochs=1,
+                    patience=1,
+                    batches_per_epoch=1,
+                    bootstrap_samples=2,
+                    skip_holdout=False,
+                )
+                with mock.patch.object(
+                    pipeline, "load_training_data", return_value=data
+                ), mock.patch.object(
+                    pipeline, "build_inhibitor_blocks", return_value=blocks
+                ), mock.patch.object(
+                    pipeline, "crossed_validation", side_effect=fake_crossed
+                ), mock.patch.object(
+                    pipeline, "train_final_models", side_effect=fake_final
+                ), mock.patch.object(
+                    pipeline, "load_pair_holdout", side_effect=fake_pair_load
+                ), mock.patch.object(
+                    pipeline, "evaluate_holdout", side_effect=fake_evaluate
+                ), mock.patch.object(pipeline, "write_evaluation_reports"):
+                    pipeline.run(args)
+
+                mode_events = events[-4:]
+                self.assertEqual([event[0] for event in mode_events], [
+                    "crossed",
+                    "final",
+                    "pair_load",
+                    "evaluate",
+                ])
+                self.assertEqual(mode_events[0][1], {"v0", "v1"})
+                self.assertEqual(mode_events[1][1], {"v0", "v1"})
+                self.assertEqual(mode_events[3][1], {"v0", "v1", "v2"})
+                self.assertEqual(mode_events[3][2], expected_pairs)
+                self.assertEqual(mode_events[3][3], method)
+                self.assertEqual(mode_events[3][4], {"v0", "v1"})
 
 
 class DiagnosticAndOODTests(unittest.TestCase):
