@@ -1,0 +1,166 @@
+{
+  "model_configs": {
+    "low_rank": {
+      "feature_set": "base",
+      "hidden_dim": 8,
+      "embedding_dim": 4,
+      "rank": 2,
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001
+    },
+    "generic": {
+      "feature_set": "base",
+      "hidden_dim": 8,
+      "embedding_dim": 4,
+      "rank": 2,
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001
+    },
+    "absolute": {
+      "feature_set": "base",
+      "hidden_dim": 8,
+      "embedding_dim": 4,
+      "rank": 2,
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001
+    }
+  },
+  "aggregations": {
+    "low_rank": {
+      "uniform": {
+        "validation_log_mae": 0.2630929022651438,
+        "grouped_standard_error": 0.030265886096668936,
+        "validation_group_count": 40
+      },
+      "median": {
+        "validation_log_mae": 0.26544849670520687,
+        "grouped_standard_error": 0.03479779563235657,
+        "validation_group_count": 40
+      },
+      "kernel": {
+        "temperature": 0.1,
+        "validation_log_mae": 0.1991911583431578,
+        "grouped_standard_error": 0.032962930345399745,
+        "validation_group_count": 40
+      },
+      "ood_kernel": {
+        "temperature": 0.1,
+        "quantile": 0.9,
+        "fallback": "uniform",
+        "validation_log_mae": 0.20674375401386613,
+        "grouped_standard_error": 0.03295143343216411,
+        "validation_group_count": 40
+      },
+      "primary_method": "kernel",
+      "selection_rule": {
+        "name": "grouped_one_standard_error",
+        "grouping": "victim_id and heldout_block after seed averaging",
+        "complexity_order": [
+          "uniform",
+          "median",
+          "kernel",
+          "ood_kernel"
+        ],
+        "threshold": 0.23215408868855752,
+        "numerical_best_method": "kernel"
+      },
+      "model_config_validation_log_mae": 0.2630929011017146,
+      "selected_config_id": 0
+    },
+    "generic": {
+      "uniform": {
+        "validation_log_mae": 0.2838635654532574,
+        "grouped_standard_error": 0.032111287933830335,
+        "validation_group_count": 40
+      },
+      "median": {
+        "validation_log_mae": 0.28780002956694345,
+        "grouped_standard_error": 0.03768917338519223,
+        "validation_group_count": 40
+      },
+      "kernel": {
+        "temperature": 0.1,
+        "validation_log_mae": 0.2063814135325758,
+        "grouped_standard_error": 0.034069915413004664,
+        "validation_group_count": 40
+      },
+      "ood_kernel": {
+        "temperature": 0.1,
+        "quantile": 0.9,
+        "fallback": "uniform",
+        "validation_log_mae": 0.21474127167450333,
+        "grouped_standard_error": 0.03402645936463627,
+        "validation_group_count": 40
+      },
+      "primary_method": "kernel",
+      "selection_rule": {
+        "name": "grouped_one_standard_error",
+        "grouping": "victim_id and heldout_block after seed averaging",
+        "complexity_order": [
+          "uniform",
+          "median",
+          "kernel",
+          "ood_kernel"
+        ],
+        "threshold": 0.24045132894558047,
+        "numerical_best_method": "kernel"
+      },
+      "model_config_validation_log_mae": 0.2838635668886414,
+      "selected_config_id": 0
+    }
+  },
+  "model_selection": {
+    "low_rank": {
+      "selected_config_id": 0,
+      "validation_log_mae": 0.26309290110171457,
+      "final_epochs": 1,
+      "selection_source": "crossed App-Inhibitor validation only"
+    },
+    "generic": {
+      "selected_config_id": 0,
+      "validation_log_mae": 0.2838635668886414,
+      "final_epochs": 1,
+      "selection_source": "crossed App-Inhibitor validation only"
+    },
+    "absolute": {
+      "selected_config_id": 0,
+      "validation_log_mae": 0.33488783906232794,
+      "final_epochs": 1,
+      "selection_source": "crossed App-Inhibitor validation only"
+    }
+  },
+  "final_epochs_from_model_specific_cv_median": {
+    "low_rank": 1,
+    "generic": 1,
+    "absolute": 1
+  },
+  "crossed_fold_count": 240,
+  "crossed_fold_count_by_model": {
+    "absolute": 80,
+    "generic": 80,
+    "low_rank": 80
+  },
+  "ood_distance_calibration": {
+    "source": "crossed_validation_query_to_uncensored_support_distances",
+    "coordinate_system": "single base-feature scaler fit to inhibitor profiles only",
+    "scaler": {
+      "feature_set": "base",
+      "epsilon": 1e-12,
+      "mean": [
+        5.300722508783907,
+        0.7562952917549883,
+        18.350468877321326,
+        29.810236186033777
+      ],
+      "scale": [
+        1.113100247039764,
+        0.3417971522705564,
+        1.742452687806586,
+        1.7651712799855737
+      ]
+    },
+    "count": 2327,
+    "median": 1.2683031558990479,
+    "maximum": 5.189028739929199
+  }
+}

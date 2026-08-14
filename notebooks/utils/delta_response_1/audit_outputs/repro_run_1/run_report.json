@@ -1,0 +1,50 @@
+{
+  "status": "complete",
+  "holdout_opened_after_final_training": true,
+  "pair_rows": 6,
+  "directional_outcomes": 12,
+  "model_seed_count": 1,
+  "elapsed_seconds": 5.628163814544678,
+  "device": "cuda",
+  "clustering": {
+    "algorithm": "kmeans",
+    "blocks": 2,
+    "seed": 1701
+  },
+  "model_config": {
+    "feature_set": "base",
+    "hidden_dim": 8,
+    "embedding_dim": 4,
+    "rank": 2,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001
+  },
+  "aggregation": {
+    "uniform": {
+      "validation_log_mae": 0.07125672379301654
+    },
+    "median": {
+      "validation_log_mae": 0.0716268742746777
+    },
+    "kernel": {
+      "temperature": 0.1,
+      "validation_log_mae": 0.055314063073860234
+    },
+    "ood_kernel": {
+      "temperature": 0.1,
+      "quantile": 0.99,
+      "fallback": "uniform",
+      "validation_log_mae": 0.055365533804485056
+    },
+    "primary_method": "kernel",
+    "model_config_validation_log_mae": 0.07125672379301654
+  },
+  "final_epochs_from_cv_median": 3,
+  "crossed_fold_count": 6,
+  "ood_distance_calibration": {
+    "source": "crossed_validation_query_to_support_distances",
+    "count": 18,
+    "median": 3.3320705890655518,
+    "maximum": 8.518149375915527
+  }
+}

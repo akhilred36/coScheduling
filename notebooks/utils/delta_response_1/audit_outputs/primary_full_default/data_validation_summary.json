@@ -1,0 +1,20 @@
+{
+  "applications": 10,
+  "inhibitors": 236,
+  "raw_app_inhibitor_rows": 2339,
+  "valid_app_inhibitor_rows": 2327,
+  "rejected_app_inhibitor_rows": 12,
+  "duplicate_key_rows": 0,
+  "anchors_per_application": {
+    "amg": 231,
+    "beatnik": 234,
+    "fiesta": 233,
+    "kripke": 235,
+    "laghos": 234,
+    "lammps": 235,
+    "minife": 229,
+    "minivite": 229,
+    "quicksilver": 232,
+    "tricount": 235
+  }
+}

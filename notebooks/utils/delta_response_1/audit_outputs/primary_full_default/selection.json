@@ -1,0 +1,38 @@
+{
+  "model_config": {
+    "feature_set": "base",
+    "hidden_dim": 8,
+    "embedding_dim": 4,
+    "rank": 2,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001
+  },
+  "aggregation": {
+    "uniform": {
+      "validation_log_mae": 0.19847371449466353
+    },
+    "median": {
+      "validation_log_mae": 0.19778219293647636
+    },
+    "kernel": {
+      "temperature": 1.0,
+      "validation_log_mae": 0.1616482214819896
+    },
+    "ood_kernel": {
+      "temperature": 1.0,
+      "quantile": 0.9,
+      "fallback": "median",
+      "validation_log_mae": 0.16125686133728456
+    },
+    "primary_method": "ood_kernel",
+    "model_config_validation_log_mae": 0.19847371449466353
+  },
+  "final_epochs_from_cv_median": 12,
+  "crossed_fold_count": 200,
+  "ood_distance_calibration": {
+    "source": "crossed_validation_query_to_support_distances",
+    "count": 2327,
+    "median": 1.2443079948425293,
+    "maximum": 9.857744216918945
+  }
+}

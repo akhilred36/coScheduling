@@ -1,0 +1,4 @@
+outputs/
+audit_outputs/**/*.csv
+__pycache__/
+tests/__pycache__/

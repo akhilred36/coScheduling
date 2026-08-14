@@ -1,0 +1,33 @@
+{
+  "analysis_is_post_holdout_only": true,
+  "primary_method": "delta_ood_kernel",
+  "real_pair_rows": 55,
+  "directional_rows_per_method": 110,
+  "all_predictions_finite_and_positive": true,
+  "validation_to_app_app_method_rank_spearman": 0.6000000000000001,
+  "primary_per_victim_validation_to_app_app_spearman": 0.8181818181818182,
+  "primary_ood": {
+    "alpha_below_one_count": 11,
+    "alpha_median": 1.0,
+    "ood_score_median": 0.2681564245810055,
+    "ood_score_at_least_0_95_count": 0,
+    "distance_min": 0.3087953329086303,
+    "distance_median": 0.8087469637393951,
+    "distance_max": 4.159842014312744,
+    "effective_anchor_count_finite": 99
+  },
+  "self_pairs": {
+    "count": 10,
+    "max_directional_prediction_log_difference": 0.0,
+    "median_observed_directional_log_difference": 0.001394849952099514,
+    "max_observed_directional_log_difference": 0.25993827204528225
+  },
+  "rejected_response_reasons": {
+    "missing_inhibitor_profile": 12
+  },
+  "invariants": {
+    "max_identity_error": 0.0,
+    "max_antisymmetry_error": 0.0,
+    "max_path_consistency_error": 1.4901161193847656e-08
+  }
+}

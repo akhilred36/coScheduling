@@ -1,0 +1,33 @@
+{
+  "applications": 10,
+  "inhibitors": 236,
+  "raw_app_inhibitor_rows": 2339,
+  "valid_app_inhibitor_rows": 2327,
+  "rejected_app_inhibitor_rows": 12,
+  "duplicate_key_rows": 0,
+  "censored_floor_rows": 249,
+  "anchors_per_application": {
+    "amg": 231,
+    "beatnik": 234,
+    "fiesta": 233,
+    "kripke": 235,
+    "laghos": 234,
+    "lammps": 235,
+    "minife": 229,
+    "minivite": 229,
+    "quicksilver": 232,
+    "tricount": 235
+  },
+  "uncensored_anchors_per_application": {
+    "amg": 219,
+    "beatnik": 234,
+    "fiesta": 86,
+    "kripke": 233,
+    "laghos": 233,
+    "lammps": 228,
+    "minife": 217,
+    "minivite": 228,
+    "quicksilver": 165,
+    "tricount": 235
+  }
+}

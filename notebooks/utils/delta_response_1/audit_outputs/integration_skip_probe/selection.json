@@ -1,0 +1,146 @@
+{
+  "model_configs": {
+    "low_rank": {
+      "feature_set": "base",
+      "hidden_dim": 8,
+      "embedding_dim": 4,
+      "rank": 2,
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001
+    },
+    "generic": {
+      "feature_set": "base",
+      "hidden_dim": 8,
+      "embedding_dim": 4,
+      "rank": 2,
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001
+    },
+    "absolute": {
+      "feature_set": "base",
+      "hidden_dim": 8,
+      "embedding_dim": 4,
+      "rank": 2,
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001
+    }
+  },
+  "aggregations": {
+    "low_rank": {
+      "uniform": {
+        "validation_log_mae": 0.04793433154070819,
+        "grouped_standard_error": 0.018144131969773884,
+        "validation_group_count": 6
+      },
+      "median": {
+        "validation_log_mae": 0.04819755289289685,
+        "grouped_standard_error": 0.020195016382415283,
+        "validation_group_count": 6
+      },
+      "kernel": {
+        "temperature": 0.1,
+        "validation_log_mae": 0.04179983456929526,
+        "grouped_standard_error": 0.01250774444235028,
+        "validation_group_count": 6
+      },
+      "ood_kernel": {
+        "temperature": 0.1,
+        "quantile": 0.9,
+        "fallback": "median",
+        "validation_log_mae": 0.04179983456929526,
+        "grouped_standard_error": 0.01250774444235028,
+        "validation_group_count": 6
+      },
+      "primary_method": "uniform",
+      "selection_rule": {
+        "name": "grouped_one_standard_error",
+        "grouping": "victim_id and heldout_block after seed averaging",
+        "complexity_order": [
+          "uniform",
+          "median",
+          "kernel",
+          "ood_kernel"
+        ],
+        "threshold": 0.05430757901164554,
+        "numerical_best_method": "kernel"
+      },
+      "model_config_validation_log_mae": 0.04793432924482557,
+      "selected_config_id": 0
+    },
+    "generic": {
+      "uniform": {
+        "validation_log_mae": 0.05481086042192246,
+        "grouped_standard_error": 0.006251788759335037,
+        "validation_group_count": 6
+      },
+      "median": {
+        "validation_log_mae": 0.05233402583334177,
+        "grouped_standard_error": 0.007041203408003736,
+        "validation_group_count": 6
+      },
+      "kernel": {
+        "temperature": 0.1,
+        "validation_log_mae": 0.038330427143308816,
+        "grouped_standard_error": 0.004152034831302981,
+        "validation_group_count": 6
+      },
+      "ood_kernel": {
+        "temperature": 0.1,
+        "quantile": 0.9,
+        "fallback": "median",
+        "validation_log_mae": 0.038330427143308816,
+        "grouped_standard_error": 0.004152034831302981,
+        "validation_group_count": 6
+      },
+      "primary_method": "kernel",
+      "selection_rule": {
+        "name": "grouped_one_standard_error",
+        "grouping": "victim_id and heldout_block after seed averaging",
+        "complexity_order": [
+          "uniform",
+          "median",
+          "kernel",
+          "ood_kernel"
+        ],
+        "threshold": 0.0424824619746118,
+        "numerical_best_method": "kernel"
+      },
+      "model_config_validation_log_mae": 0.054810861084196305,
+      "selected_config_id": 0
+    }
+  },
+  "final_epochs_from_model_specific_cv_median": {
+    "low_rank": 1,
+    "generic": 1,
+    "absolute": 1
+  },
+  "crossed_fold_count": 18,
+  "crossed_fold_count_by_model": {
+    "absolute": 6,
+    "generic": 6,
+    "low_rank": 6
+  },
+  "ood_distance_calibration": {
+    "source": "crossed_validation_query_to_uncensored_support_distances",
+    "coordinate_system": "single base-feature scaler fit to inhibitor profiles only",
+    "scaler": {
+      "feature_set": "base",
+      "epsilon": 1e-12,
+      "mean": [
+        1.2620838308367308,
+        0.3416666666666666,
+        3.624604418524123,
+        6.221655417539168
+      ],
+      "scale": [
+        0.6130090057465685,
+        0.24565671621639457,
+        1.1419080284091987,
+        1.4262675054028418
+      ]
+    },
+    "count": 18,
+    "median": 2.2698962688446045,
+    "maximum": 3.4971303939819336
+  }
+}

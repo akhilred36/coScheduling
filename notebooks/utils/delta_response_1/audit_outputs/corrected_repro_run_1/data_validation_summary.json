@@ -1,0 +1,19 @@
+{
+  "applications": 3,
+  "inhibitors": 6,
+  "raw_app_inhibitor_rows": 18,
+  "valid_app_inhibitor_rows": 18,
+  "rejected_app_inhibitor_rows": 0,
+  "duplicate_key_rows": 0,
+  "censored_floor_rows": 0,
+  "anchors_per_application": {
+    "a": 6,
+    "b": 6,
+    "c": 6
+  },
+  "uncensored_anchors_per_application": {
+    "a": 6,
+    "b": 6,
+    "c": 6
+  }
+}

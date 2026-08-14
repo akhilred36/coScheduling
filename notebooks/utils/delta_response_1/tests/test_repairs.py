@@ -1,0 +1,379 @@
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+import sys
+import tempfile
+import unittest
+from unittest import mock
+
+import numpy as np
+import pandas as pd
+import torch
+
+
+MODULE_DIR = Path(__file__).resolve().parents[1]
+AUDIT_DIR = MODULE_DIR / "audit_outputs"
+sys.path.insert(0, str(MODULE_DIR))
+
+import inference
+import metrics
+import pipeline
+from data import (
+    ProfileScaler,
+    TrainingData,
+    load_pair_holdout,
+    log_slowdown_to_slowdown,
+    observe_log_slowdown,
+)
+from model import GenericPotential
+from training import EpisodeSampler, censored_absolute_huber_loss, censored_delta_huber_loss
+
+
+def profiles(id_column: str, identifiers: list[str], offset: float = 0.0) -> pd.DataFrame:
+    rows = []
+    for index, identifier in enumerate(identifiers):
+        value = index + 1.0 + offset
+        rows.append([identifier, value, min(value / 10.0, 1.0), value * 10, value * 100])
+    return pd.DataFrame(
+        rows,
+        columns=[id_column, "mpi_time", "comm_frac", "total_msgs", "total_bytes"],
+    )
+
+
+def crossed_data() -> tuple[TrainingData, pd.DataFrame]:
+    jobs = profiles("job_id", ["v0", "v1", "v2"])
+    inhibitors = profiles("inhib_id", ["i0", "i1", "i2", "i3"], 0.25)
+    rows = []
+    for victim_index, victim in enumerate(jobs["job_id"]):
+        for inhibitor_index, inhibitor in enumerate(inhibitors["inhib_id"]):
+            slowdown = 1.0 + 0.05 * victim_index + 0.02 * inhibitor_index
+            rows.append(
+                [
+                    victim,
+                    inhibitor,
+                    slowdown,
+                    np.log(slowdown),
+                    slowdown == 1.0,
+                    0,
+                ]
+            )
+    responses = pd.DataFrame(
+        rows,
+        columns=[
+            "job_id",
+            "inhib_id",
+            "slowdown",
+            "log_slowdown",
+            "is_censored",
+            "replicate_id",
+        ],
+    )
+    blocks = pd.DataFrame({"inhib_id": inhibitors["inhib_id"], "block": [0, 0, 1, 1]})
+    return TrainingData(jobs, inhibitors, responses, pd.DataFrame(), pd.DataFrame()), blocks
+
+
+class CensoringAndBoundaryTests(unittest.TestCase):
+    def test_censored_losses_apply_exact_and_one_sided_constraints(self) -> None:
+        target_logs = torch.tensor(
+            [[0.2, 0.5], [0.4, 0.0], [0.0, 0.3], [0.0, 0.0]]
+        )
+        satisfying = torch.tensor([0.3, -0.5, 0.4, 9.0])
+        violating = torch.tensor([0.0, 0.2, -0.2, -9.0])
+        self.assertEqual(float(censored_delta_huber_loss(satisfying, target_logs)), 0.0)
+        self.assertGreater(float(censored_delta_huber_loss(violating, target_logs)), 0.0)
+        exact = censored_absolute_huber_loss(
+            torch.tensor([0.2, -2.0]), torch.tensor([0.2, 0.0])
+        )
+        violation = censored_absolute_huber_loss(
+            torch.tensor([0.0, 0.5]), torch.tensor([0.2, 0.0])
+        )
+        self.assertEqual(float(exact), 0.0)
+        self.assertGreater(float(violation), 0.0)
+
+    def test_observation_mapping_and_exp_guards(self) -> None:
+        observed = observe_log_slowdown(np.asarray([-100.0, 0.0, 0.5]))
+        np.testing.assert_allclose(observed, [0.0, 0.0, 0.5])
+        slowdown = log_slowdown_to_slowdown(observed)
+        self.assertTrue(np.isfinite(slowdown).all())
+        self.assertTrue((slowdown >= 1.0).all())
+        with self.assertRaises(ValueError):
+            observe_log_slowdown(np.asarray([np.nan]))
+        with self.assertRaises(ValueError):
+            log_slowdown_to_slowdown(np.asarray([-0.1]))
+        with self.assertRaises(OverflowError):
+            log_slowdown_to_slowdown(np.asarray([1000.0]))
+
+    def test_pair_loader_rejects_reversed_duplicates(self) -> None:
+        jobs = profiles("job_id", ["a", "b"])
+        pairs = pd.DataFrame(
+            [
+                ["a", "b", 1.1, 1.2],
+                ["b", "a", 1.3, 1.4],
+            ],
+            columns=["jobA_id", "jobB_id", "slowdown_A", "slowdown_B"],
+        )
+        with tempfile.TemporaryDirectory(dir=AUDIT_DIR) as directory:
+            path = Path(directory) / "pairs.csv"
+            pairs.to_csv(path, index=False)
+            with self.assertRaisesRegex(ValueError, "duplicate unordered pairs"):
+                load_pair_holdout(path, jobs)
+
+
+class DiagnosticAndOODTests(unittest.TestCase):
+    def test_weighted_dispersion_and_median_effective_count(self) -> None:
+        anchors = pd.DataFrame(
+            {"inhib_id": ["a", "b", "c"], "log_slowdown": [0.1, 0.5, 1.2]}
+        )
+        model_profiles = {
+            "a": np.zeros(4, dtype=np.float32),
+            "b": np.ones(4, dtype=np.float32),
+            "c": np.full(4, 2.0, dtype=np.float32),
+        }
+        distance_profiles = {
+            "a": np.asarray([0.0, 0.0, 0.0, 0.0]),
+            "b": np.asarray([1.0, 0.0, 0.0, 0.0]),
+            "c": np.asarray([3.0, 0.0, 0.0, 0.0]),
+        }
+
+        def zeros(_model, _victim, aggressors, _device):
+            return np.zeros(len(aggressors))
+
+        with mock.patch.object(inference, "response_values", side_effect=zeros):
+            kernel = inference.predict_with_anchors(
+                mock.Mock(),
+                np.zeros(4),
+                np.zeros(4),
+                anchors,
+                model_profiles,
+                method="kernel",
+                temperature=1.0,
+                reference_distances=np.asarray([0.1, 0.2]),
+                ood_config=inference.OODConfig(),
+                device=torch.device("cpu"),
+                distance_target_profile=np.asarray([0.1, 0.0, 0.0, 0.0]),
+                distance_inhibitor_profiles=distance_profiles,
+            )
+            median = inference.predict_with_anchors(
+                mock.Mock(),
+                np.zeros(4),
+                np.zeros(4),
+                anchors,
+                model_profiles,
+                method="median",
+                temperature=1.0,
+                reference_distances=np.asarray([0.1, 0.2]),
+                ood_config=inference.OODConfig(),
+                device=torch.device("cpu"),
+                distance_target_profile=np.asarray([0.1, 0.0, 0.0, 0.0]),
+                distance_inhibitor_profiles=distance_profiles,
+            )
+        self.assertTrue(np.isfinite(kernel["weighted_residual_std"]))
+        self.assertTrue(np.isnan(median["effective_anchor_count"]))
+        self.assertTrue(np.isnan(median["weighted_residual_std"]))
+        self.assertTrue(np.isfinite(median["kernel_component_effective_anchor_count"]))
+        self.assertTrue(np.isfinite(median["fallback_residual_mad"]))
+
+    def test_distances_use_common_coordinate_when_model_scalers_differ(self) -> None:
+        anchors = pd.DataFrame(
+            {"inhib_id": ["x", "y"], "log_slowdown": [0.1, 0.2]}
+        )
+        model_profiles = {"x": np.zeros(4), "y": np.zeros(4)}
+        distance_profiles = {
+            "x": np.asarray([0.0, 0.0, 0.0, 0.0]),
+            "y": np.asarray([3.0, 4.0, 0.0, 0.0]),
+        }
+        captured: dict[str, np.ndarray] = {}
+        original = inference.aggregate_residuals
+
+        def capture(residuals, distances, method, **kwargs):
+            captured["distances"] = distances.copy()
+            return original(residuals, distances, method, **kwargs)
+
+        with mock.patch.object(
+            inference, "response_values", return_value=np.zeros(3)
+        ), mock.patch.object(inference, "aggregate_residuals", side_effect=capture):
+            inference.predict_with_anchors(
+                mock.Mock(),
+                np.full(4, 99.0),
+                np.full(4, -99.0),
+                anchors,
+                model_profiles,
+                method="kernel",
+                temperature=1.0,
+                reference_distances=np.asarray([1.0]),
+                ood_config=inference.OODConfig(),
+                device=torch.device("cpu"),
+                distance_target_profile=np.asarray([0.0, 4.0, 0.0, 0.0]),
+                distance_inhibitor_profiles=distance_profiles,
+            )
+        np.testing.assert_allclose(captured["distances"], [4.0, 3.0])
+
+
+class SelectionAndLeakageTests(unittest.TestCase):
+    def test_crossed_rows_scalers_and_model_specific_epochs(self) -> None:
+        data, blocks = crossed_data()
+        config = pipeline.RunConfig(
+            cv_seeds=[7],
+            final_seeds=[7],
+            max_epochs=3,
+            patience=1,
+            batches_per_epoch=1,
+            batch_size=4,
+            temperatures=[1.0],
+            ood_quantiles=[0.95],
+            ood_fallbacks=["uniform"],
+            bootstrap_samples=2,
+            device="cpu",
+        )
+        training_rows: list[tuple[str, pd.DataFrame]] = []
+        scaler_rows: list[pd.DataFrame] = []
+        original_fit = pipeline.ProfileScaler.fit
+
+        def record_fit(scaler, frame):
+            scaler_rows.append(frame.copy())
+            return original_fit(scaler, frame)
+
+        def fake_potential(model, responses, *args, **kwargs):
+            kind = "generic" if isinstance(model, GenericPotential) else "low_rank"
+            training_rows.append((kind, responses.copy()))
+            EpisodeSampler(responses, args[0], args[1], kwargs["seed"])
+            epoch = 2 if kind == "generic" else 1
+            return {"best_epoch": epoch, "best_validation": 0.2, "epochs_run": epoch}
+
+        def fake_absolute(_model, responses, *args, **kwargs):
+            training_rows.append(("absolute", responses.copy()))
+            return {"best_epoch": 3, "best_validation": 0.3, "epochs_run": 3}
+
+        with tempfile.TemporaryDirectory(dir=AUDIT_DIR) as directory, mock.patch.object(
+            pipeline.ProfileScaler, "fit", record_fit
+        ), mock.patch.object(
+            pipeline, "train_potential", side_effect=fake_potential
+        ), mock.patch.object(
+            pipeline, "train_absolute", side_effect=fake_absolute
+        ):
+            result = pipeline.crossed_validation(
+                data, blocks, config, torch.device("cpu"), Path(directory)
+            )
+        _, _, epochs, folds, _, _ = result
+        self.assertEqual(epochs, {"low_rank": 1, "generic": 2, "absolute": 3})
+        self.assertEqual(set(folds["model_kind"]), {"low_rank", "generic", "absolute"})
+        self.assertEqual(len(scaler_rows), 7)
+        block_map = dict(zip(blocks["inhib_id"], blocks["block"]))
+        for index, (victim, block) in enumerate(
+            (victim, block) for victim in ["v0", "v1", "v2"] for block in [0, 1]
+        ):
+            fitted = scaler_rows[index + 1]
+            self.assertNotIn(victim, set(fitted.get("job_id", pd.Series(dtype=str)).dropna()))
+            inhibitor_ids = fitted.get("inhib_id", pd.Series(dtype=str)).dropna()
+            self.assertFalse(inhibitor_ids.map(block_map).eq(block).any())
+            for kind, train in training_rows[index * 3 : index * 3 + 3]:
+                self.assertNotIn(victim, set(train["job_id"]))
+                self.assertFalse(train["inhib_id"].map(block_map).eq(block).any(), kind)
+
+    def test_sampler_keeps_inhibitors_distinct_with_response_replicates(self) -> None:
+        jobs = {"v": np.zeros(4, dtype=np.float32)}
+        inhibitors = {
+            "a": np.zeros(4, dtype=np.float32),
+            "b": np.ones(4, dtype=np.float32),
+        }
+        responses = pd.DataFrame(
+            {
+                "job_id": ["v", "v", "v"],
+                "inhib_id": ["a", "a", "b"],
+                "log_slowdown": [0.1, 0.2, 0.3],
+            }
+        )
+        sampler = EpisodeSampler(responses, jobs, inhibitors, seed=3)
+        _, anchors, queries, _ = sampler.sample(200)
+        self.assertTrue(np.all(np.any(anchors.numpy() != queries.numpy(), axis=1)))
+
+    def test_one_standard_error_rule_prefers_simpler_method(self) -> None:
+        rows = []
+        for victim in ["a", "b", "c", "d"]:
+            for method, error in [("uniform", 0.101), ("median", 0.102), ("kernel", 0.1), ("ood_kernel", 0.099)]:
+                rows.append(
+                    {
+                        "victim_id": victim,
+                        "heldout_block": 0,
+                        "seed": 0,
+                        "method": method,
+                        "temperature": 1.0,
+                        "ood_quantile": 0.95,
+                        "ood_fallback": "uniform",
+                        "absolute_log_error": error + (0.02 if victim == "d" else 0.0),
+                    }
+                )
+        selected = pipeline._select_aggregation(pd.DataFrame(rows))
+        self.assertEqual(selected["primary_method"], "uniform")
+        self.assertEqual(
+            selected["selection_rule"]["complexity_order"],
+            ["uniform", "median", "kernel", "ood_kernel"],
+        )
+
+
+class BootstrapAndHoldoutTests(unittest.TestCase):
+    def test_bootstrap_draws_are_paired_and_keep_directions_together(self) -> None:
+        rows = []
+        for method, offset in [("a", 0.0), ("b", 0.1)]:
+            for pair_id in range(3):
+                for direction in ["A", "B"]:
+                    rows.append(
+                        [method, pair_id, direction, 1.0 + pair_id, 1.1 + pair_id + offset]
+                    )
+        frame = pd.DataFrame(
+            rows,
+            columns=["method", "pair_row_id", "direction", "true_slowdown", "predicted_slowdown"],
+        )
+        captured: list[np.ndarray] = []
+        original = metrics.resample_pair_clusters
+
+        def record(sample_frame, sampled):
+            captured.append(np.asarray(sampled).copy())
+            result = original(sample_frame, sampled)
+            counts = result.groupby("pair_row_id")["direction"].nunique()
+            self.assertTrue((counts == 2).all())
+            return result
+
+        with mock.patch.object(metrics, "resample_pair_clusters", side_effect=record):
+            metrics.cluster_bootstrap(frame, samples=4, seed=9)
+        for left, right in zip(captured[:4], captured[4:]):
+            np.testing.assert_array_equal(left, right)
+        differences = metrics.paired_cluster_bootstrap_differences(
+            frame, samples=20, seed=9
+        )
+        self.assertFalse(differences.empty)
+        self.assertEqual(set(differences["cluster_count"]), {3})
+
+    def test_skip_holdout_completes_without_pair_access(self) -> None:
+        synthetic = AUDIT_DIR / "synthetic_data"
+        with tempfile.TemporaryDirectory(dir=AUDIT_DIR) as directory:
+            output = Path(directory) / "run"
+            args = argparse.Namespace(
+                jobs_csv=synthetic / "jobs.csv",
+                inhibitors_csv=synthetic / "inhibitors.csv",
+                job_inh_csv=synthetic / "job_inh.csv",
+                pair_csv=AUDIT_DIR / "must_not_open.csv",
+                output_dir=output,
+                config=None,
+                cv_seeds=[0],
+                final_seeds=[0],
+                inhibitor_blocks=2,
+                max_epochs=1,
+                patience=1,
+                batches_per_epoch=1,
+                bootstrap_samples=2,
+                skip_holdout=True,
+            )
+            with mock.patch.object(pipeline, "load_pair_holdout") as loader:
+                pipeline.run(args)
+            loader.assert_not_called()
+            report = json.loads((output / "run_report.json").read_text())
+            self.assertEqual(report["status"], "complete")
+            self.assertFalse(report["holdout_opened_after_final_training"])
+            self.assertIsNone(report["pair_rows"])
+
+
+if __name__ == "__main__":
+    unittest.main()
