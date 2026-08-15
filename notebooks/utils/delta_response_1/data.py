@@ -78,6 +78,13 @@ class TrainingData:
 
 
 EVALUATION_METHODS = {"random_split", "one_known", "zero_shot"}
+EVALUATION_MODES = EVALUATION_METHODS | {"both"}
+
+
+def resolve_evaluation_methods(mode: str) -> list[str]:
+    if mode not in EVALUATION_MODES:
+        raise ValueError(f"evaluation mode must be one of {sorted(EVALUATION_MODES)}")
+    return ["one_known", "zero_shot"] if mode == "both" else [mode]
 
 
 def subset_training_data(data: TrainingData, training_apps: list[str]) -> TrainingData:

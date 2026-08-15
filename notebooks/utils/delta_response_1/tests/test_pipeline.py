@@ -16,7 +16,7 @@ AUDIT_DIR = MODULE_DIR / "audit_outputs"
 sys.path.insert(0, str(MODULE_DIR))
 
 from data import ProfileScaler, expand_directional_pairs, load_training_data
-from inference import OODConfig, aggregate_residuals, ood_alpha
+from inference import OODConfig, aggregate_residuals, ood_alpha, rank_inference_anchors
 from model import LowRankPotential
 
 
@@ -81,6 +81,26 @@ class AggregationTests(unittest.TestCase):
         self.assertTrue(np.isnan(median_weights).all())
         self.assertEqual(ood_alpha(0.1, reference, 0.95), 1.0)
         self.assertLess(ood_alpha(2.0, reference, 0.95), 1.0)
+
+    def test_inference_anchor_ranking_is_uncensored_stable_and_nested(self) -> None:
+        anchors = pd.DataFrame(
+            {
+                "inhib_id": [f"i{index}" for index in range(20)],
+                "log_slowdown": [0.0, *[0.1 + index / 100 for index in range(19)]],
+                "replicate_id": [0] * 20,
+            }
+        )
+        ranked = rank_inference_anchors(anchors, victim_id="victim", seed=17)
+        shuffled = rank_inference_anchors(
+            anchors.sample(frac=1.0, random_state=9), victim_id="victim", seed=17
+        )
+        self.assertEqual(len(ranked), 19)
+        self.assertTrue((ranked["log_slowdown"] > 0).all())
+        self.assertEqual(ranked["inhib_id"].tolist(), shuffled["inhib_id"].tolist())
+        self.assertEqual(
+            set(ranked.iloc[:4]["inhib_id"]),
+            set(ranked.iloc[:16]["inhib_id"]) & set(ranked.iloc[:4]["inhib_id"]),
+        )
 
 
 class DataTests(unittest.TestCase):

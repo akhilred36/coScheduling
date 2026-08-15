@@ -474,6 +474,8 @@ configuration can override them:
   "temperatures": [0.1, 0.3, 1.0, 3.0, 10.0],
   "ood_quantiles": [0.9, 0.95, 0.99],
   "ood_fallbacks": ["uniform", "median"],
+  "inference_anchor_counts": [4, 16, 64, "all"],
+  "inference_anchor_seed": 1701,
   "bootstrap_samples": 1000,
   "bootstrap_seed": 923,
   "device": "auto",
@@ -528,6 +530,201 @@ Input and execution options are:
 Requested and selected settings are saved in every run, so reduced budgets or
 other deviations remain auditable.
 
+## Paper Experiment Runner
+
+`run_experiments.py` provides the preregistered staged robustness study. It is
+separate from `pipeline.py`: the pipeline remains one scientific fit/evaluation,
+while the runner generates immutable task specifications, executes isolated
+pipeline subprocesses, resumes completed work, and consolidates outputs.
+
+The runner implements:
+
+- A six-candidate base/augmented feature and rank `{1, 2, 4}` architecture
+  screen.
+- A staged AdamW learning-rate/weight-decay grid followed by capacity checks.
+- Inhibitor-block sensitivity at `(blocks, seed)` values `(3,1701)`,
+  `(4,1701)`, `(6,1701)`, `(4,1702)`, and `(4,1703)`.
+- One-factor synthetic sweeps over data size, true rank, noise, censoring,
+  missing edges, response replicates, outliers, target OOD shift, and transfer
+  mismatch, plus predefined combined-adversity conditions.
+- Deterministic uncensored response-observation budgets `4`, `16`, `64`, and
+  `all`. These calibration subsets are nested and affect inference only; model
+  training and crossed validation remain unchanged. A requested budget larger
+  than the available uncensored observations means "up to" that budget and is
+  marked by `anchor_budget_feasible=false`; requested, actual, available, and
+  distinct-inhibitor counts are all saved.
+- Training-application learning curves for sizes `2` through `8`, using ten
+  balanced nested application orderings and five synthetic dataset seeds in
+  the standard profile.
+- Paired `one_known` and `zero_shot` evaluation from the same fitted checkpoint
+  for each training subset.
+
+Architecture, optimizer, and capacity choices are carried forward separately
+for low-rank, generic, and absolute models. Synthetic stress and training-size
+tasks deliberately use the fixed preregistered default rather than an adaptive
+winner from the real-data tuning stages; this isolates the controlled method
+study and avoids making synthetic results conditional on repeated real-fold
+selection.
+
+The standard plan is intentionally large. Inspect `experiment_manifest.csv`
+and run individual stages before launching the entire study.
+
+### Plan A Study
+
+```bash
+PY=/home/akhil/hpcResearch/python_venvs/ml_analysis/bin/python
+ROOT=audit_outputs/experiments/paper_v1
+
+$PY run_experiments.py plan \
+  --root "$ROOT" \
+  --profile standard \
+  --suites real,stress,learning_curve
+
+$PY run_experiments.py status --root "$ROOT"
+```
+
+Profiles are:
+
+- `smoke`: one model seed, two epochs, one balanced application split, and a
+  reduced synthetic scenario set.
+- `standard`: five model seeds, 80 epochs, 1,000 bootstrap samples, five
+  synthetic seeds, and ten balanced nested application splits.
+- `extended`: ten model seeds, 160 epochs, 5,000 bootstrap samples, and an
+  additional profile-diverse nested-split sensitivity analysis.
+
+Planning generates synthetic CSVs and `subset_membership.csv`, but does not fit
+models. Every generated dataset has a `scenario_summary.json` containing the
+requested condition, realized censoring/missingness, row counts, and file
+hashes.
+
+### Run Stages
+
+```bash
+# Architecture, optimizer, capacity, and fold sensitivity. Dependencies are
+# included automatically when a later stage is requested.
+$PY run_experiments.py run \
+  --root "$ROOT" \
+  --stages real_fold_robustness \
+  --resume
+
+# Synthetic one-factor and combined stress tests.
+$PY run_experiments.py run \
+  --root "$ROOT" \
+  --stages synthetic_stress \
+  --resume
+
+# Application-count learning curves for one-known and zero-shot transfer.
+$PY run_experiments.py run \
+  --root "$ROOT" \
+  --stages training_size_learning_curve \
+  --resume
+```
+
+Use `--max-tasks COUNT` for bounded batches and `--max-workers COUNT` only when
+the allocated hardware can support concurrent PyTorch subprocesses. One worker
+is the safe default for a single GPU. Each retry receives a new attempt
+directory; prior logs and partial outputs are never overwritten.
+
+Omitting `--stages` selects the entire plan. For the full `standard` plan shown
+above, that means 508 tasks. Prefer the stage-specific commands above or use
+`--max-tasks` when a bounded run is intended.
+
+### Progress, Logs, And Interruption
+
+The runner announces each task when it starts and prints the task attempt-log
+directory. Pipeline subprocesses run with unbuffered output, with stdout and
+stderr retained as `stdout.log` and `stderr.log` below that attempt directory.
+Crossed validation reports completed model fits, total model fits, percentage,
+and elapsed time. The runner also prints a heartbeat every 30 seconds while a
+task is active, including its elapsed time and latest pipeline stdout line.
+Change the runner heartbeat cadence with `--progress-interval SECONDS`; the
+value must be positive.
+
+A standard real-data architecture task performs 3,600 cross-validation model
+fits, with an upper bound of 288,000 training epochs. It can therefore run for
+hours even when execution is healthy. The runner's main thread waits for each
+pipeline worker during this time; an interrupted traceback ending in
+`waiter.acquire()` indicates that the runner was waiting for that worker, not
+that this lock was the source of a deadlock.
+
+Pressing Ctrl-C interrupts the active pipeline, prints a concise resume message,
+and exits with status `130` instead of exposing the executor's internal wait
+traceback. The interrupted attempt and its partial outputs remain immutable and
+are not treated as successful. Re-running with `--resume` skips completed tasks
+whose execution fingerprints still match and starts incomplete or failed tasks
+in a new numbered attempt directory.
+
+For example, resume only the architecture stage with a ten-second runner
+heartbeat:
+
+```bash
+$PY run_experiments.py run \
+  --root "$ROOT" \
+  --stages real_architecture \
+  --progress-interval 10 \
+  --resume
+```
+
+Real-data tasks always invoke `pipeline.py --skip-holdout` and never pass a pair
+path. Pair evaluation in this runner is synthetic. Do not substitute the
+historical real `pair.csv`; a future untouched holdout requires a separately
+authorized final evaluation after the experiment design is frozen.
+
+### Consolidated Results
+
+Successful runs are consolidated automatically. They can also be rebuilt
+without rerunning models:
+
+```bash
+$PY run_experiments.py consolidate --root "$ROOT" --include-predictions
+```
+
+`consolidated/` contains plain CSV files suitable for pandas:
+
+- `fold_metrics.csv`: crossed victim/block/seed/model records with full task
+  provenance and resolved candidate fields.
+- `candidates.csv`: every model-kind-specific candidate in every staged run.
+- `selections.csv`: selected model configuration, epoch count, aggregation,
+  kernel temperature, and OOD rule.
+- `metrics_long.csv`: tidy overall, self-averaged, non-self, per-victim,
+  macro-victim, seed, bootstrap, and paired-difference metrics.
+- `predictions.csv`: complete synthetic directional predictions with scenario,
+  training-subset, endpoint-familiarity, and anchor-budget columns.
+- `pair_eligibility.csv`: canonical pair inclusion and known-endpoint counts.
+- `data_conditions.csv`: requested and realized synthetic conditions.
+- `learning_curve_replicates.csv`: split- and generator-level non-self learning
+  curve estimates.
+- `learning_curve_summary.csv`: split-averaged estimates with between-generator
+  standard deviations and standard errors.
+- `failures.csv`: failed task metadata; subprocess stdout/stderr remain under
+  each task attempt.
+
+Typical notebook loading requires only pandas:
+
+```python
+from pathlib import Path
+import pandas as pd
+
+root = Path("audit_outputs/experiments/paper_v1/consolidated")
+metrics = pd.read_csv(root / "metrics_long.csv")
+predictions = pd.read_csv(root / "predictions.csv")
+learning_curve = metrics.query(
+    "stage == 'training_size_learning_curve' "
+    "and scope == 'overall_non_self' "
+    "and metric == 'log_mae'"
+)
+```
+
+For the training-size study, `split_id` is the repeated composition unit and
+the size-`k` set is a prefix of the same ordering. Pair-cluster bootstrap files
+are conditional diagnostics within one generated dataset and fitted lineage;
+they are not population-level uncertainty across applications. Use
+`learning_curve_summary.csv` for the primary across-generator uncertainty and
+retain split-level variation from `learning_curve_replicates.csv`. Model seeds
+are repeated fits rather than independent observations. Size-8 zero-shot
+results have only two unknown endpoints and should be accompanied by pair
+counts and a sensitivity analysis excluding that point.
+
 ## Outputs
 
 Every run writes:
@@ -562,6 +759,15 @@ Runs that evaluate a synthetic or new App-App holdout additionally write:
 - `cluster_bootstrap_confidence_intervals.csv`: marginal intervals from the
   shared pair-cluster draws.
 - `paired_method_differences.csv`: paired method-minus-comparison intervals.
+- `metrics_non_self.csv`: overall metrics excluding self-pairs.
+- `metrics_non_self_per_victim.csv`: non-self metrics by victim.
+- `metrics_non_self_macro_victim.csv`: equal-weight non-self victim averages.
+- `cluster_bootstrap_non_self.csv`: conditional pair-cluster intervals after
+  excluding self-pairs.
+- `paired_method_differences_non_self.csv`: non-self paired method intervals.
+
+When `--eval-method both` is used, fitting occurs once and tier-specific files
+are written below `evaluations/one_known/` and `evaluations/zero_shot/`.
 
 Undefined nonlinear diagnostics remain `NaN` by design. Prediction and metric
 fields are finite and validated against the observed target support.

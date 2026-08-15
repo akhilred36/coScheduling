@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 
 import numpy as np
 import pandas as pd
@@ -16,6 +17,35 @@ from training import response_values
 class OODConfig:
     quantile: float = 0.95
     fallback: str = "median"
+
+
+def rank_inference_anchors(
+    anchors: pd.DataFrame,
+    *,
+    victim_id: str,
+    seed: int,
+) -> pd.DataFrame:
+    """Return a stable, nested ordering of the victim's uncensored anchors."""
+    usable = anchors[anchors["log_slowdown"] > 0].copy()
+    if usable.empty:
+        raise ValueError("Latent residual calibration requires an uncensored anchor")
+    if "replicate_id" not in usable:
+        usable["replicate_id"] = 0
+
+    def digest(row: pd.Series) -> str:
+        identity = (
+            f"{seed}|{victim_id}|{row['inhib_id']}|{int(row['replicate_id'])}"
+        )
+        return hashlib.sha256(identity.encode("utf-8")).hexdigest()
+
+    usable["_anchor_order"] = usable.apply(digest, axis=1)
+    return (
+        usable.sort_values(
+            ["_anchor_order", "inhib_id", "replicate_id"], kind="stable"
+        )
+        .drop(columns="_anchor_order")
+        .reset_index(drop=True)
+    )
 
 
 def softmax_weights(distances: np.ndarray, temperature: float) -> np.ndarray:

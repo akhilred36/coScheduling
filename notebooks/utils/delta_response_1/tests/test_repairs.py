@@ -170,6 +170,25 @@ class EvaluationProtocolTests(unittest.TestCase):
         self.assertEqual(set(subset.responses["job_id"]), {"v0", "v2"})
         self.assertEqual(set(subset.inhibitors["inhib_id"]), {"i0", "i1", "i2", "i3"})
 
+    def test_anchor_budget_metrics_are_not_pooled(self) -> None:
+        predictions = pd.DataFrame(
+            {
+                "evaluation_method": ["zero_shot"] * 4,
+                "anchor_budget": ["4", "4", "all", "all"],
+                "method": ["model"] * 4,
+                "victim_id": ["a"] * 4,
+                "aggressor_id": ["b"] * 4,
+                "pair_row_id": [0, 1, 0, 1],
+                "true_slowdown": [2.0] * 4,
+                "predicted_slowdown": [2.0, 2.0, 1.0, 1.0],
+            }
+        )
+        result = metrics.metrics_by_method(predictions)
+        self.assertEqual(len(result), 2)
+        by_budget = result.set_index("anchor_budget")["log_mae"]
+        self.assertAlmostEqual(by_budget["4"], 0.0)
+        self.assertGreater(by_budget["all"], 0.0)
+
     def test_random_split_resolves_every_application_for_training(self) -> None:
         data, _ = crossed_data()
         config = pipeline.RunConfig(evaluation_method="random_split")
@@ -389,6 +408,30 @@ class DiagnosticAndOODTests(unittest.TestCase):
 
 
 class SelectionAndLeakageTests(unittest.TestCase):
+    def test_model_candidates_can_be_configured_per_model_kind(self) -> None:
+        raw = {
+            "model_candidates_by_kind": {
+                "low_rank": [{"rank": 1}],
+                "generic": [{"feature_set": "augmented"}],
+                "absolute": [{"hidden_dim": 16}],
+            }
+        }
+        with tempfile.TemporaryDirectory(dir=AUDIT_DIR) as directory:
+            path = Path(directory) / "config.json"
+            path.write_text(json.dumps(raw))
+            config = pipeline.load_run_config(path)
+        self.assertEqual(
+            pipeline.model_candidates_for_kind(config, "low_rank")[0].rank, 1
+        )
+        self.assertEqual(
+            pipeline.model_candidates_for_kind(config, "generic")[0].feature_set,
+            "augmented",
+        )
+        self.assertEqual(
+            pipeline.model_candidates_for_kind(config, "absolute")[0].hidden_dim,
+            16,
+        )
+
     def test_crossed_rows_scalers_and_model_specific_epochs(self) -> None:
         data, blocks = crossed_data()
         config = pipeline.RunConfig(

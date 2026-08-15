@@ -20,6 +20,14 @@ METRIC_COLUMNS = [
 ]
 
 
+def metric_strata(frame: pd.DataFrame) -> list[str]:
+    return [
+        column
+        for column in ["evaluation_method", "anchor_budget"]
+        if column in frame.columns
+    ]
+
+
 def compute_metrics(frame: pd.DataFrame) -> dict[str, float]:
     true = frame["true_slowdown"].to_numpy(dtype=float)
     predicted = frame["predicted_slowdown"].to_numpy(dtype=float)
@@ -52,9 +60,7 @@ def compute_metrics(frame: pd.DataFrame) -> dict[str, float]:
 
 def metrics_by_method(predictions: pd.DataFrame) -> pd.DataFrame:
     rows = []
-    group_columns = ["method"]
-    if "evaluation_method" in predictions:
-        group_columns.insert(0, "evaluation_method")
+    group_columns = [*metric_strata(predictions), "method"]
     for keys, group in predictions.groupby(group_columns, sort=False):
         if not isinstance(keys, tuple):
             keys = (keys,)
@@ -67,9 +73,13 @@ def self_pair_averaged(predictions: pd.DataFrame) -> pd.DataFrame:
     self_pairs = predictions[predictions["victim_id"] == predictions["aggressor_id"]]
     if self_pairs.empty:
         return predictions.copy()
-    group_columns = ["method", "pair_row_id", "victim_id", "aggressor_id"]
-    if "evaluation_method" in predictions:
-        group_columns.insert(0, "evaluation_method")
+    group_columns = [
+        *metric_strata(predictions),
+        "method",
+        "pair_row_id",
+        "victim_id",
+        "aggressor_id",
+    ]
     numeric = [
         column
         for column in self_pairs.select_dtypes(include=[np.number]).columns
@@ -82,15 +92,12 @@ def self_pair_averaged(predictions: pd.DataFrame) -> pd.DataFrame:
 
 def per_victim_metrics(predictions: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     rows = []
-    group_columns = ["method", "victim_id"]
-    if "evaluation_method" in predictions:
-        group_columns.insert(0, "evaluation_method")
+    strata = metric_strata(predictions)
+    group_columns = [*strata, "method", "victim_id"]
     for keys, group in predictions.groupby(group_columns):
         rows.append({**dict(zip(group_columns, keys)), **compute_metrics(group)})
     detailed = pd.DataFrame(rows)
-    macro_columns = ["method"]
-    if "evaluation_method" in predictions:
-        macro_columns.insert(0, "evaluation_method")
+    macro_columns = [*strata, "method"]
     macro = detailed.groupby(macro_columns, as_index=False)[METRIC_COLUMNS].mean()
     macro.insert(len(macro_columns), "victim_id", "macro_average")
     return detailed, macro

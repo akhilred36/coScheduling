@@ -20,7 +20,7 @@ from sklearn.cluster import KMeans
 
 from data import (
     BASE_FEATURES,
-    EVALUATION_METHODS,
+    EVALUATION_MODES,
     ProfileScaler,
     TrainingData,
     expand_directional_pairs,
@@ -28,6 +28,7 @@ from data import (
     load_pair_holdout,
     load_training_data,
     observe_log_slowdown,
+    resolve_evaluation_methods,
     select_evaluation_pairs,
     subset_training_data,
 )
@@ -35,6 +36,7 @@ from inference import (
     OODConfig,
     aggregate_residuals,
     predict_with_anchors,
+    rank_inference_anchors,
 )
 from metrics import (
     cluster_bootstrap,
@@ -85,6 +87,7 @@ class RunConfig:
     cv_seeds: list[int] = field(default_factory=lambda: [0, 1, 2, 3, 4])
     final_seeds: list[int] = field(default_factory=lambda: [0, 1, 2, 3, 4])
     model_candidates: list[ModelConfig] = field(default_factory=lambda: [ModelConfig()])
+    model_candidates_by_kind: dict[str, list[ModelConfig]] | None = None
     max_epochs: int = 80
     patience: int = 10
     batches_per_epoch: int = 4
@@ -95,6 +98,8 @@ class RunConfig:
     bootstrap_samples: int = 1000
     bootstrap_seed: int = 923
     device: str = "auto"
+    inference_anchor_counts: list[int | str] = field(default_factory=lambda: ["all"])
+    inference_anchor_seed: int = 1701
 
 
 def _json_default(value: Any) -> Any:
@@ -116,7 +121,29 @@ def load_run_config(path: Path | None) -> RunConfig:
         return RunConfig()
     raw = json.loads(path.read_text())
     candidates = [ModelConfig(**item) for item in raw.pop("model_candidates", [{}])]
-    return RunConfig(model_candidates=candidates, **raw)
+    candidates_by_kind = raw.pop("model_candidates_by_kind", None)
+    if candidates_by_kind is not None:
+        candidates_by_kind = {
+            kind: [ModelConfig(**item) for item in values]
+            for kind, values in candidates_by_kind.items()
+        }
+    return RunConfig(
+        model_candidates=candidates,
+        model_candidates_by_kind=candidates_by_kind,
+        **raw,
+    )
+
+
+def model_candidates_for_kind(config: RunConfig, kind: str) -> list[ModelConfig]:
+    if config.model_candidates_by_kind is None:
+        return config.model_candidates
+    unknown = set(config.model_candidates_by_kind) - {"low_rank", "generic", "absolute"}
+    if unknown:
+        raise ValueError(f"Unknown model candidate kinds: {sorted(unknown)}")
+    candidates = config.model_candidates_by_kind.get(kind)
+    if not candidates:
+        raise ValueError(f"No model candidates configured for {kind}")
+    return candidates
 
 
 def resolve_device(requested: str) -> torch.device:
@@ -156,6 +183,31 @@ def resolve_training_apps(data: TrainingData, config: RunConfig) -> list[str]:
             f"{config.evaluation_method} requires at least one unknown application"
         )
     return resolved
+
+
+def resolve_anchor_budgets(values: list[int | str]) -> list[tuple[str, int | None]]:
+    budgets: list[tuple[str, int | None]] = []
+    seen: set[str] = set()
+    for value in values:
+        if isinstance(value, str) and value.lower() == "all":
+            label, count = "all", None
+        else:
+            try:
+                count = int(value)
+            except (TypeError, ValueError) as error:
+                raise ValueError(
+                    "Inference anchor counts must be positive integers or 'all'"
+                ) from error
+            if count <= 0:
+                raise ValueError("Inference anchor counts must be positive")
+            label = str(count)
+        if label in seen:
+            raise ValueError(f"Duplicate inference anchor count: {label}")
+        seen.add(label)
+        budgets.append((label, count))
+    if not budgets:
+        raise ValueError("At least one inference anchor count is required")
+    return budgets
 
 
 def build_inhibitor_blocks(data: TrainingData, config: RunConfig) -> pd.DataFrame:
@@ -518,58 +570,121 @@ def crossed_validation(
     distance_reference = _common_distance_reference(
         data, blocks, distance_inhibitor_profiles
     )
+    profile_cache: dict[
+        tuple[str, str, int], tuple[dict[str, np.ndarray], dict[str, np.ndarray]]
+    ] = {}
 
-    for config_id, model_config in enumerate(config.model_candidates):
+    model_kinds = ["low_rank", "generic", "absolute"]
+    candidate_lists = {
+        kind: model_candidates_for_kind(config, kind) for kind in model_kinds
+    }
+    valid_fold_groups = 0
+    for victim_id in data.jobs["job_id"].astype(str):
+        for block in sorted(blocks["block"].unique()):
+            victim_rows = responses[responses["job_id"] == victim_id]
+            has_support = victim_rows["block"].ne(block).any()
+            has_queries = victim_rows["block"].eq(block).any()
+            if has_support and has_queries:
+                valid_fold_groups += 1
+    total_fits = (
+        valid_fold_groups
+        * len(config.cv_seeds)
+        * sum(len(values) for values in candidate_lists.values())
+    )
+    completed_fits = 0
+    progress_started = time.monotonic()
+    next_progress = progress_started + 30.0
+    for config_id in range(max(len(values) for values in candidate_lists.values())):
         for victim_id in data.jobs["job_id"].astype(str):
             for block in sorted(blocks["block"].unique()):
                 retained_inhibitors = data.inhibitors[
                     data.inhibitors["inhib_id"].map(block_by_id) != block
                 ]
                 train_jobs = data.jobs[data.jobs["job_id"] != victim_id]
-                scaler = ProfileScaler(model_config.feature_set).fit(
-                    pd.concat([train_jobs, retained_inhibitors], ignore_index=True)
-                )
-                job_profiles, inhibitor_profiles = profile_maps(
-                    data.jobs, data.inhibitors, scaler
-                )
                 train_rows = responses[
-                    (responses["job_id"] != victim_id) & (responses["block"] != block)
+                    (responses["job_id"] != victim_id)
+                    & (responses["block"] != block)
                 ]
                 support = responses[
-                    (responses["job_id"] == victim_id) & (responses["block"] != block)
+                    (responses["job_id"] == victim_id)
+                    & (responses["block"] != block)
                 ]
                 queries = responses[
-                    (responses["job_id"] == victim_id) & (responses["block"] == block)
+                    (responses["job_id"] == victim_id)
+                    & (responses["block"] == block)
                 ]
                 if support.empty or queries.empty:
                     continue
                 for seed in config.cv_seeds:
-                    for model_kind in ["low_rank", "generic"]:
+                    for model_kind in model_kinds:
+                        if config_id >= len(candidate_lists[model_kind]):
+                            continue
+                        model_config = candidate_lists[model_kind][config_id]
+                        profile_key = (
+                            model_config.feature_set,
+                            victim_id,
+                            int(block),
+                        )
+                        if profile_key not in profile_cache:
+                            scaler = ProfileScaler(model_config.feature_set).fit(
+                                pd.concat(
+                                    [train_jobs, retained_inhibitors],
+                                    ignore_index=True,
+                                )
+                            )
+                            profile_cache[profile_key] = profile_maps(
+                                data.jobs, data.inhibitors, scaler
+                            )
+                        job_profiles, inhibitor_profiles = profile_cache[profile_key]
                         set_seed(seed)
                         model = make_model(model_config, model_kind)
-                        validation = lambda candidate: _fold_uniform_log_mae(
-                            candidate,
-                            job_profiles[victim_id],
-                            support,
-                            queries,
-                            inhibitor_profiles,
-                            device,
-                        )
-                        training_result = train_potential(
-                            model,
-                            train_rows,
-                            job_profiles,
-                            inhibitor_profiles,
-                            seed=seed,
-                            epochs=config.max_epochs,
-                            batches_per_epoch=config.batches_per_epoch,
-                            batch_size=config.batch_size,
-                            learning_rate=model_config.learning_rate,
-                            weight_decay=model_config.weight_decay,
-                            device=device,
-                            validation_fn=validation,
-                            patience=config.patience,
-                        )
+                        if model_kind == "absolute":
+                            validation = lambda candidate: _fold_absolute_log_mae(
+                                candidate,
+                                job_profiles[victim_id],
+                                queries,
+                                inhibitor_profiles,
+                                device,
+                            )
+                            training_result = train_absolute(
+                                model,
+                                train_rows,
+                                job_profiles,
+                                inhibitor_profiles,
+                                seed=seed,
+                                epochs=config.max_epochs,
+                                batches_per_epoch=config.batches_per_epoch,
+                                batch_size=config.batch_size,
+                                learning_rate=model_config.learning_rate,
+                                weight_decay=model_config.weight_decay,
+                                device=device,
+                                validation_fn=validation,
+                                patience=config.patience,
+                            )
+                        else:
+                            validation = lambda candidate: _fold_uniform_log_mae(
+                                candidate,
+                                job_profiles[victim_id],
+                                support,
+                                queries,
+                                inhibitor_profiles,
+                                device,
+                            )
+                            training_result = train_potential(
+                                model,
+                                train_rows,
+                                job_profiles,
+                                inhibitor_profiles,
+                                seed=seed,
+                                epochs=config.max_epochs,
+                                batches_per_epoch=config.batches_per_epoch,
+                                batch_size=config.batch_size,
+                                learning_rate=model_config.learning_rate,
+                                weight_decay=model_config.weight_decay,
+                                device=device,
+                                validation_fn=validation,
+                                patience=config.patience,
+                            )
                         fold_records.append(
                             {
                                 "config_id": config_id,
@@ -577,10 +692,14 @@ def crossed_validation(
                                 "victim_id": victim_id,
                                 "heldout_block": block,
                                 "seed": seed,
-                                "support_count": len(support),
+                                "support_count": len(support)
+                                if model_kind != "absolute"
+                                else 0,
                                 "uncensored_support_count": int(
                                     (support["log_slowdown"] > 0).sum()
-                                ),
+                                )
+                                if model_kind != "absolute"
+                                else 0,
                                 "query_count": len(queries),
                                 **{
                                     key: training_result[key]
@@ -592,68 +711,40 @@ def crossed_validation(
                                 },
                             }
                         )
-                        _record_fold_predictions(
-                            prediction_records,
-                            model,
-                            victim_id,
-                            int(block),
-                            seed,
-                            config_id,
-                            model_kind,
-                            support,
-                            queries,
-                            job_profiles,
-                            inhibitor_profiles,
-                            distance_inhibitor_profiles,
-                            distance_reference,
-                            config,
-                            device,
-                        )
-
-                    set_seed(seed)
-                    absolute = make_model(model_config, "absolute")
-                    absolute_validation = lambda candidate: _fold_absolute_log_mae(
-                        candidate,
-                        job_profiles[victim_id],
-                        queries,
-                        inhibitor_profiles,
-                        device,
-                    )
-                    absolute_result = train_absolute(
-                        absolute,
-                        train_rows,
-                        job_profiles,
-                        inhibitor_profiles,
-                        seed=seed,
-                        epochs=config.max_epochs,
-                        batches_per_epoch=config.batches_per_epoch,
-                        batch_size=config.batch_size,
-                        learning_rate=model_config.learning_rate,
-                        weight_decay=model_config.weight_decay,
-                        device=device,
-                        validation_fn=absolute_validation,
-                        patience=config.patience,
-                    )
-                    fold_records.append(
-                        {
-                            "config_id": config_id,
-                            "model_kind": "absolute",
-                            "victim_id": victim_id,
-                            "heldout_block": block,
-                            "seed": seed,
-                            "support_count": 0,
-                            "uncensored_support_count": 0,
-                            "query_count": len(queries),
-                            **{
-                                key: absolute_result[key]
-                                for key in [
-                                    "best_epoch",
-                                    "best_validation",
-                                    "epochs_run",
-                                ]
-                            },
-                        }
-                    )
+                        if model_kind != "absolute":
+                            _record_fold_predictions(
+                                prediction_records,
+                                model,
+                                victim_id,
+                                int(block),
+                                seed,
+                                config_id,
+                                model_kind,
+                                support,
+                                queries,
+                                job_profiles,
+                                inhibitor_profiles,
+                                distance_inhibitor_profiles,
+                                distance_reference,
+                                config,
+                                device,
+                            )
+                        completed_fits += 1
+                        now = time.monotonic()
+                        if (
+                            completed_fits == 1
+                            or completed_fits == total_fits
+                            or now >= next_progress
+                        ):
+                            elapsed = now - progress_started
+                            print(
+                                "Cross-validation progress: "
+                                f"{completed_fits}/{total_fits} fits "
+                                f"({100.0 * completed_fits / total_fits:.1f}%), "
+                                f"elapsed {elapsed:.0f}s",
+                                flush=True,
+                            )
+                            next_progress = now + 30.0
 
     predictions = pd.DataFrame(prediction_records)
     folds = pd.DataFrame(fold_records)
@@ -674,7 +765,9 @@ def crossed_validation(
         config_scores = kind_folds.groupby("config_id")["best_validation"].mean()
         selected_id = int(config_scores.idxmin())
         selected_ids[model_kind] = selected_id
-        selected_models[model_kind] = config.model_candidates[selected_id]
+        selected_models[model_kind] = model_candidates_for_kind(config, model_kind)[
+            selected_id
+        ]
         selected_fold_epochs = kind_folds[kind_folds["config_id"] == selected_id][
             "best_epoch"
         ]
@@ -826,6 +919,8 @@ def evaluate_holdout(
     device: torch.device,
     evaluation_method: str = "random_split",
     known_apps: list[str] | set[str] | None = None,
+    inference_anchor_counts: list[int | str] | None = None,
+    inference_anchor_seed: int = 1701,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     directional = expand_directional_pairs(pairs)
     known = (
@@ -875,112 +970,170 @@ def evaluate_holdout(
             primary_parameters.get("fallback", "median"),
         ),
     )
+    anchor_budgets = resolve_anchor_budgets(inference_anchor_counts or ["all"])
     rows: list[dict[str, Any]] = []
     for seed, seed_models in models.items():
         for _, pair in directional.iterrows():
             victim_id = str(pair["victim_id"])
             aggressor_id = str(pair["aggressor_id"])
-            anchors = anchors_by_job[victim_id]
-            low_job_profiles, low_inhibitor_profiles = profiles["low_rank"]
-            victim_profile = low_job_profiles[victim_id]
-            target_profile = low_job_profiles[aggressor_id]
-            distance_target_profile = distance_job_profiles[aggressor_id]
-            common = _common_diagnostics(
-                distance_target_profile,
-                anchors,
-                distance_inhibitor_profiles,
-                reference,
+            ranked_anchors = rank_inference_anchors(
+                anchors_by_job[victim_id],
+                victim_id=victim_id,
+                seed=inference_anchor_seed,
             )
-            base = {
-                "evaluation_method": evaluation_method,
-                "seed": seed,
-                "pair_row_id": int(pair["pair_row_id"]),
-                "pair_cluster_id": int(pair["pair_cluster_id"]),
-                "direction": pair["direction"],
-                "victim_id": victim_id,
-                "aggressor_id": aggressor_id,
-                "victim_known": victim_id in known,
-                "aggressor_known": aggressor_id in known,
-                "known_endpoint_count": int(victim_id in known)
-                + int(aggressor_id in known),
-                "true_slowdown": float(pair["true_slowdown"]),
-            }
+            available_anchor_count = len(ranked_anchors)
+            available_inhibitor_count = int(ranked_anchors["inhib_id"].nunique())
+            for anchor_budget, anchor_count in anchor_budgets:
+                anchors = (
+                    ranked_anchors
+                    if anchor_count is None
+                    else ranked_anchors.iloc[:anchor_count].reset_index(drop=True)
+                )
+                low_job_profiles, low_inhibitor_profiles = profiles["low_rank"]
+                victim_profile = low_job_profiles[victim_id]
+                target_profile = low_job_profiles[aggressor_id]
+                distance_target_profile = distance_job_profiles[aggressor_id]
+                common = _common_diagnostics(
+                    distance_target_profile,
+                    anchors,
+                    distance_inhibitor_profiles,
+                    reference,
+                )
+                common["available_uncensored_anchor_count"] = available_anchor_count
+                common["available_uncensored_inhibitor_count"] = (
+                    available_inhibitor_count
+                )
+                common["requested_uncensored_anchor_count"] = (
+                    np.nan if anchor_count is None else anchor_count
+                )
+                common["anchor_budget_feasible"] = (
+                    True if anchor_count is None else available_anchor_count >= anchor_count
+                )
+                common["uncensored_anchor_inhibitor_count"] = int(
+                    anchors["inhib_id"].nunique()
+                )
+                base = {
+                    "evaluation_method": evaluation_method,
+                    "anchor_budget": anchor_budget,
+                    "seed": seed,
+                    "pair_row_id": int(pair["pair_row_id"]),
+                    "pair_cluster_id": int(pair["pair_cluster_id"]),
+                    "direction": pair["direction"],
+                    "victim_id": victim_id,
+                    "aggressor_id": aggressor_id,
+                    "victim_known": victim_id in known,
+                    "aggressor_known": aggressor_id in known,
+                    "known_endpoint_count": int(victim_id in known)
+                    + int(aggressor_id in known),
+                    "true_slowdown": float(pair["true_slowdown"]),
+                }
 
-            baseline_predictions = {
-                "constant_1": 0.0,
-                "victim_inhibitor_median": float(
-                    np.log(np.median(anchors["slowdown"].to_numpy()))
-                ),
-            }
-            usable_anchors = anchors[anchors["log_slowdown"] > 0].reset_index(drop=True)
-            distance_anchor_profiles = np.stack(
-                [
-                    distance_inhibitor_profiles[str(value)]
-                    for value in usable_anchors["inhib_id"]
-                ]
-            )
-            nearest_index = int(
-                np.argmin(
-                    np.linalg.norm(
-                        distance_anchor_profiles - distance_target_profile[None, :], axis=1
+                baseline_predictions = {
+                    "constant_1": 0.0,
+                    "victim_inhibitor_median": float(
+                        np.median(anchors["log_slowdown"].to_numpy())
+                    ),
+                }
+                distance_anchor_profiles = np.stack(
+                    [
+                        distance_inhibitor_profiles[str(value)]
+                        for value in anchors["inhib_id"]
+                    ]
+                )
+                nearest_index = int(
+                    np.argmin(
+                        np.linalg.norm(
+                            distance_anchor_profiles
+                            - distance_target_profile[None, :],
+                            axis=1,
+                        )
                     )
                 )
-            )
-            baseline_predictions["nearest_anchor"] = float(
-                usable_anchors.iloc[nearest_index]["log_slowdown"]
-            )
-            for method, latent_log in baseline_predictions.items():
-                method_diagnostics = dict(common)
-                if method == "nearest_anchor":
-                    method_diagnostics["effective_anchor_count"] = 1.0
-                    method_diagnostics["weighted_residual_std"] = 0.0
+                baseline_predictions["nearest_anchor"] = float(
+                    anchors.iloc[nearest_index]["log_slowdown"]
+                )
+                for method, latent_log in baseline_predictions.items():
+                    method_diagnostics = dict(common)
+                    if method == "nearest_anchor":
+                        method_diagnostics["effective_anchor_count"] = 1.0
+                        method_diagnostics["weighted_residual_std"] = 0.0
+                    rows.append(
+                        {
+                            **base,
+                            "method": method,
+                            "latent_predicted_log_slowdown": latent_log,
+                            "predicted_log_slowdown": float(
+                                observe_log_slowdown(latent_log)
+                            ),
+                            **method_diagnostics,
+                        }
+                    )
+
+                absolute = seed_models["absolute"]
+                absolute_job_profiles, _ = profiles["absolute"]
+                absolute.eval()
+                with torch.no_grad():
+                    absolute_prediction = absolute(
+                        torch.as_tensor(
+                            absolute_job_profiles[victim_id][None, :],
+                            dtype=torch.float32,
+                            device=device,
+                        ),
+                        torch.as_tensor(
+                            absolute_job_profiles[aggressor_id][None, :],
+                            dtype=torch.float32,
+                            device=device,
+                        ),
+                    ).item()
                 rows.append(
                     {
                         **base,
-                        "method": method,
-                        "latent_predicted_log_slowdown": latent_log,
+                        "method": "absolute_response",
+                        "latent_predicted_log_slowdown": absolute_prediction,
                         "predicted_log_slowdown": float(
-                            observe_log_slowdown(latent_log)
+                            observe_log_slowdown(absolute_prediction)
                         ),
-                        **method_diagnostics,
+                        **common,
                     }
                 )
 
-            absolute = seed_models["absolute"]
-            absolute_job_profiles, _ = profiles["absolute"]
-            absolute.eval()
-            with torch.no_grad():
-                absolute_prediction = absolute(
-                    torch.as_tensor(
-                        absolute_job_profiles[victim_id][None, :],
-                        dtype=torch.float32,
+                for method_name, (method, temperature, ood_config) in low_rank_specs.items():
+                    result = predict_with_anchors(
+                        seed_models["low_rank"],
+                        victim_profile,
+                        target_profile,
+                        anchors,
+                        low_inhibitor_profiles,
+                        method=method,
+                        temperature=temperature,
+                        reference_distances=reference,
+                        ood_config=ood_config,
                         device=device,
-                    ),
-                    torch.as_tensor(
-                        absolute_job_profiles[aggressor_id][None, :],
-                        dtype=torch.float32,
-                        device=device,
-                    ),
-                ).item()
-            rows.append(
-                {
-                    **base,
-                    "method": "absolute_response",
-                    "latent_predicted_log_slowdown": absolute_prediction,
-                    "predicted_log_slowdown": float(
-                        observe_log_slowdown(absolute_prediction)
-                    ),
-                    **common,
-                }
-            )
+                        distance_target_profile=distance_target_profile,
+                        distance_inhibitor_profiles=distance_inhibitor_profiles,
+                    )
+                    result["available_uncensored_anchor_count"] = available_anchor_count
+                    result.update(
+                        {
+                            key: common[key]
+                            for key in [
+                                "available_uncensored_inhibitor_count",
+                                "requested_uncensored_anchor_count",
+                                "anchor_budget_feasible",
+                                "uncensored_anchor_inhibitor_count",
+                            ]
+                        }
+                    )
+                    rows.append({**base, "method": method_name, **result})
 
-            for method_name, (method, temperature, ood_config) in low_rank_specs.items():
+                method, temperature, ood_config = generic_spec
+                generic_job_profiles, generic_inhibitor_profiles = profiles["generic"]
                 result = predict_with_anchors(
-                    seed_models["low_rank"],
-                    victim_profile,
-                    target_profile,
+                    seed_models["generic"],
+                    generic_job_profiles[victim_id],
+                    generic_job_profiles[aggressor_id],
                     anchors,
-                    low_inhibitor_profiles,
+                    generic_inhibitor_profiles,
                     method=method,
                     temperature=temperature,
                     reference_distances=reference,
@@ -989,25 +1142,19 @@ def evaluate_holdout(
                     distance_target_profile=distance_target_profile,
                     distance_inhibitor_profiles=distance_inhibitor_profiles,
                 )
-                rows.append({**base, "method": method_name, **result})
-
-            method, temperature, ood_config = generic_spec
-            generic_job_profiles, generic_inhibitor_profiles = profiles["generic"]
-            result = predict_with_anchors(
-                seed_models["generic"],
-                generic_job_profiles[victim_id],
-                generic_job_profiles[aggressor_id],
-                anchors,
-                generic_inhibitor_profiles,
-                method=method,
-                temperature=temperature,
-                reference_distances=reference,
-                ood_config=ood_config,
-                device=device,
-                distance_target_profile=distance_target_profile,
-                distance_inhibitor_profiles=distance_inhibitor_profiles,
-            )
-            rows.append({**base, "method": "generic_potential", **result})
+                result["available_uncensored_anchor_count"] = available_anchor_count
+                result.update(
+                    {
+                        key: common[key]
+                        for key in [
+                            "available_uncensored_inhibitor_count",
+                            "requested_uncensored_anchor_count",
+                            "anchor_budget_feasible",
+                            "uncensored_anchor_inhibitor_count",
+                        ]
+                    }
+                )
+                rows.append({**base, "method": "generic_potential", **result})
 
     seed_predictions = pd.DataFrame(rows)
     seed_predictions["predicted_slowdown"] = log_slowdown_to_slowdown(
@@ -1015,6 +1162,7 @@ def evaluate_holdout(
     )
     keys = [
         "evaluation_method",
+        "anchor_budget",
         "method",
         "pair_row_id",
         "pair_cluster_id",
@@ -1029,6 +1177,11 @@ def evaluate_holdout(
     diagnostic_columns = [
         "number_of_anchors",
         "uncensored_anchor_count",
+        "available_uncensored_anchor_count",
+        "uncensored_anchor_inhibitor_count",
+        "available_uncensored_inhibitor_count",
+        "requested_uncensored_anchor_count",
+        "anchor_budget_feasible",
         "nearest_anchor_distance",
         "effective_anchor_count",
         "weighted_residual_std",
@@ -1039,7 +1192,7 @@ def evaluate_holdout(
         "ood_score",
         "ood_alpha",
     ]
-    ensemble = seed_predictions.groupby(keys, as_index=False).agg(
+    ensemble = seed_predictions.groupby(keys, as_index=False, sort=False).agg(
         latent_predicted_log_slowdown=("latent_predicted_log_slowdown", "mean"),
         model_seed_log_std=(
             "latent_predicted_log_slowdown",
@@ -1053,6 +1206,7 @@ def evaluate_holdout(
     ensemble["predicted_slowdown"] = log_slowdown_to_slowdown(
         ensemble["predicted_log_slowdown"].to_numpy()
     )
+    ensemble["anchor_budget_feasible"] = ensemble["anchor_budget_feasible"].eq(1.0)
     ensemble["absolute_error"] = abs(
         ensemble["predicted_slowdown"] - ensemble["true_slowdown"]
     )
@@ -1080,29 +1234,85 @@ def write_evaluation_reports(
     per_victim, macro = per_victim_metrics(predictions)
     per_victim.to_csv(output_dir / "metrics_per_victim.csv", index=False)
     macro.to_csv(output_dir / "metrics_macro_victim.csv", index=False)
-    bootstrap = cluster_bootstrap(
-        predictions,
-        samples=config.bootstrap_samples,
-        seed=config.bootstrap_seed,
-    )
+    non_self = predictions[predictions["victim_id"] != predictions["aggressor_id"]]
+    if not non_self.empty:
+        metrics_by_method(non_self).to_csv(
+            output_dir / "metrics_non_self.csv", index=False
+        )
+        non_self_per_victim, non_self_macro = per_victim_metrics(non_self)
+        non_self_per_victim.to_csv(
+            output_dir / "metrics_non_self_per_victim.csv", index=False
+        )
+        non_self_macro.to_csv(
+            output_dir / "metrics_non_self_macro_victim.csv", index=False
+        )
+        non_self_bootstrap_frames = []
+        non_self_difference_frames = []
+        for anchor_budget, budget_predictions in non_self.groupby(
+            "anchor_budget", sort=False
+        ):
+            non_self_bootstrap = cluster_bootstrap(
+                budget_predictions,
+                samples=config.bootstrap_samples,
+                seed=config.bootstrap_seed,
+            )
+            non_self_bootstrap.insert(0, "anchor_budget", anchor_budget)
+            non_self_bootstrap_frames.append(non_self_bootstrap)
+            non_self_differences = paired_cluster_bootstrap_differences(
+                budget_predictions,
+                samples=config.bootstrap_samples,
+                seed=config.bootstrap_seed,
+            )
+            non_self_differences.insert(0, "anchor_budget", anchor_budget)
+            non_self_difference_frames.append(non_self_differences)
+        non_self_bootstrap = pd.concat(non_self_bootstrap_frames, ignore_index=True)
+        non_self_bootstrap.insert(0, "evaluation_method", evaluation_method)
+        non_self_bootstrap.to_csv(
+            output_dir / "cluster_bootstrap_non_self.csv", index=False
+        )
+        non_self_differences = pd.concat(
+            non_self_difference_frames, ignore_index=True
+        )
+        non_self_differences.insert(0, "evaluation_method", evaluation_method)
+        non_self_differences.to_csv(
+            output_dir / "paired_method_differences_non_self.csv", index=False
+        )
+
+    bootstrap_frames = []
+    difference_frames = []
+    for anchor_budget, budget_predictions in predictions.groupby(
+        "anchor_budget", sort=False
+    ):
+        bootstrap = cluster_bootstrap(
+            budget_predictions,
+            samples=config.bootstrap_samples,
+            seed=config.bootstrap_seed,
+        )
+        bootstrap.insert(0, "anchor_budget", anchor_budget)
+        bootstrap_frames.append(bootstrap)
+        differences = paired_cluster_bootstrap_differences(
+            budget_predictions,
+            samples=config.bootstrap_samples,
+            seed=config.bootstrap_seed,
+        )
+        differences.insert(0, "anchor_budget", anchor_budget)
+        difference_frames.append(differences)
+    bootstrap = pd.concat(bootstrap_frames, ignore_index=True)
     bootstrap.insert(0, "evaluation_method", evaluation_method)
     bootstrap.to_csv(output_dir / "cluster_bootstrap_confidence_intervals.csv", index=False)
-    differences = paired_cluster_bootstrap_differences(
-        predictions,
-        samples=config.bootstrap_samples,
-        seed=config.bootstrap_seed,
-    )
+    differences = pd.concat(difference_frames, ignore_index=True)
     differences.insert(0, "evaluation_method", evaluation_method)
     differences.to_csv(output_dir / "paired_method_differences.csv", index=False)
 
     seed_rows = []
-    for (evaluation_method, method, seed), group in seed_predictions.groupby(
-        ["evaluation_method", "method", "seed"]
+    for (evaluation_method, anchor_budget, method, seed), group in seed_predictions.groupby(
+        ["evaluation_method", "anchor_budget", "method", "seed"]
     ):
         result = metrics_by_method(group.assign(method=method)).iloc[0].to_dict()
         seed_rows.append(
             {
                 "evaluation_method": evaluation_method,
+                "anchor_budget": anchor_budget,
                 "method": method,
                 "seed": seed,
                 **result,
@@ -1138,10 +1348,12 @@ def run(args: argparse.Namespace) -> None:
             for value in args.training_apps.split(",")
             if value.strip()
         ]
-    if config.evaluation_method not in EVALUATION_METHODS:
+    if config.evaluation_method not in EVALUATION_MODES:
         raise ValueError(
-            f"evaluation_method must be one of {sorted(EVALUATION_METHODS)}"
+            f"evaluation_method must be one of {sorted(EVALUATION_MODES)}"
         )
+    evaluation_methods = resolve_evaluation_methods(config.evaluation_method)
+    resolve_anchor_budgets(config.inference_anchor_counts)
     device = resolve_device(config.device)
 
     print("Loading and validating App-Inhibitor training data (pair.csv remains sealed)")
@@ -1230,7 +1442,8 @@ def run(args: argparse.Namespace) -> None:
     common_report = {
         "status": "complete",
         "evaluation_protocol": {
-            "method": config.evaluation_method,
+            "mode": config.evaluation_method,
+            "methods": evaluation_methods,
             "training_applications": training_apps,
             "unknown_applications": unknown_apps,
             "unknown_application_anchors_available_at_inference": True,
@@ -1267,34 +1480,53 @@ def run(args: argparse.Namespace) -> None:
 
     # This is the sole point where pair.csv is opened. No fitting follows it.
     print(
-        "Opening sealed pair.csv for one final "
-        f"{config.evaluation_method} App-App evaluation"
+        "Opening sealed pair.csv for final "
+        f"{', '.join(evaluation_methods)} App-App evaluation"
     )
     pairs = load_pair_holdout(args.pair_csv, full_data.jobs)
-    evaluation_pairs, pair_manifest = select_evaluation_pairs(
-        pairs, training_apps, config.evaluation_method
-    )
-    pair_manifest.to_csv(output_dir / "evaluation_pair_manifest.csv", index=False)
-    predictions, seed_predictions = evaluate_holdout(
-        full_data,
-        evaluation_pairs,
-        scalers,
-        models,
-        aggregations,
-        distance_reference,
-        distance_scaler,
-        device,
-        evaluation_method=config.evaluation_method,
-        known_apps=training_apps,
-    )
-    write_evaluation_reports(predictions, seed_predictions, config, output_dir)
+    pair_counts = {}
+    directional_counts = {}
+    for evaluation_method in evaluation_methods:
+        evaluation_dir = (
+            output_dir
+            if len(evaluation_methods) == 1
+            else output_dir / "evaluations" / evaluation_method
+        )
+        evaluation_dir.mkdir(parents=True, exist_ok=True)
+        evaluation_pairs, pair_manifest = select_evaluation_pairs(
+            pairs, training_apps, evaluation_method
+        )
+        pair_manifest.to_csv(
+            evaluation_dir / "evaluation_pair_manifest.csv", index=False
+        )
+        predictions, seed_predictions = evaluate_holdout(
+            full_data,
+            evaluation_pairs,
+            scalers,
+            models,
+            aggregations,
+            distance_reference,
+            distance_scaler,
+            device,
+            evaluation_method=evaluation_method,
+            known_apps=training_apps,
+            inference_anchor_counts=config.inference_anchor_counts,
+            inference_anchor_seed=config.inference_anchor_seed,
+        )
+        write_evaluation_reports(
+            predictions, seed_predictions, config, evaluation_dir
+        )
+        pair_counts[evaluation_method] = len(evaluation_pairs)
+        directional_counts[evaluation_method] = len(evaluation_pairs) * 2
     report = {
         **common_report,
         "holdout_opened_after_final_training": True,
         "holdout_evaluation": "completed",
         "pair_rows": len(pairs),
-        "evaluated_pair_rows": len(evaluation_pairs),
-        "directional_outcomes": len(evaluation_pairs) * 2,
+        "evaluated_pair_rows": sum(pair_counts.values()),
+        "evaluated_pair_rows_by_method": pair_counts,
+        "directional_outcomes": sum(directional_counts.values()),
+        "directional_outcomes_by_method": directional_counts,
         "elapsed_seconds": time.time() - started,
     }
     write_json(output_dir / "run_report.json", report)
@@ -1322,7 +1554,7 @@ def parse_args() -> argparse.Namespace:
         "--eval-method",
         "--eval_method",
         dest="eval_method",
-        choices=sorted(EVALUATION_METHODS),
+        choices=sorted(EVALUATION_MODES),
         help="App-App endpoint-familiarity evaluation tier",
     )
     parser.add_argument(
