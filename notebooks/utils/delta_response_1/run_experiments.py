@@ -2,8 +2,8 @@
 
 The runner selects one global low-rank recipe from App-Inhibitor crossed
 validation, freezes it, and evaluates random_split plus balanced one_known and
-zero_shot training-size conditions on an explicitly supplied untouched pair
-holdout. Pair outcomes are never available to tuning tasks.
+zero_shot training-size conditions on the configured App-App pair data. Pair
+outcomes are never available to tuning tasks.
 """
 
 from __future__ import annotations
@@ -258,10 +258,6 @@ def build_plan(
     pair_csv: Path,
 ) -> list[dict[str, Any]]:
     profile = PROFILES[profile_name]
-    if pair_csv.resolve() == (DEFAULT_DATA / "pair.csv").resolve():
-        raise ValueError(
-            "The historical pair.csv is contaminated and cannot be used by the paper runner"
-        )
     paths = {
         "jobs": jobs_csv.resolve(),
         "inhibitors": inhibitors_csv.resolve(),
@@ -418,8 +414,8 @@ def plan_command(args: argparse.Namespace) -> None:
                 task["stage"] in EVALUATION_STAGES for task in tasks
             ),
             "holdout_policy": (
-                "The explicit pair holdout is sealed during global App-Inhibitor tuning "
-                "and opened only by fixed-selection evaluation tasks."
+                "The configured pair data is sealed during global App-Inhibitor "
+                "tuning and opened only by fixed-selection evaluation tasks."
             ),
             "global_hyperparameter_selection_scope": (
                 "Transductive: all evaluation applications' profiles and App-Inhibitor "
@@ -1244,8 +1240,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     plan.add_argument(
         "--pair-csv",
         type=Path,
-        required=True,
-        help="new untouched App-App holdout; no historical default is permitted",
+        default=DEFAULT_DATA / "pair.csv",
+        help="App-App evaluation data",
     )
     plan.set_defaults(function=plan_command)
 

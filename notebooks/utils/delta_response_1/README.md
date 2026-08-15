@@ -25,9 +25,10 @@ See `schematic.md` for the extended research specification.
 ## Holdout Policy
 
 The historical real App-App dataset was opened by earlier smoke runs and is not
-a pristine holdout. Do not use it for development, tuning, calibration,
-debugging, or new confirmatory claims. Use `--skip-holdout` for real
-App-Inhibitor development and use synthetic pair data for end-to-end tests.
+a pristine holdout. The runner defaults to this standard pair file for
+repeatable evaluation, but its outcomes remain excluded from development,
+tuning, calibration, and model fitting. Results from it must not be described
+as evaluation on a previously untouched holdout.
 
 A newly collected untouched App-App dataset is required for any future claim
 about transfer performance. The pipeline deliberately loads a supplied pair
@@ -590,29 +591,27 @@ matrix.
 
 ### Plan And Run
 
-Planning requires an explicit pair path so the historical contaminated pair
-file cannot be selected through a default:
+Planning uses the repository's standard `jobs.csv`, `inhibitors.csv`,
+`job_inh.csv`, and `pair.csv` paths by default:
 
 ```bash
 PY=/home/akhil/hpcResearch/python_venvs/ml_analysis/bin/python
 ROOT=audit_outputs/experiments/focused_paper_v1
-PAIR=/path/to/new_untouched_pair.csv
 
 $PY run_experiments.py plan \
   --root "$ROOT" \
-  --profile standard \
-  --pair-csv "$PAIR"
+  --profile standard
 
 $PY run_experiments.py tune --root "$ROOT" --resume
 $PY run_experiments.py evaluate --root "$ROOT" --resume
 $PY run_experiments.py status --root "$ROOT"
 ```
 
-The App-Inhibitor paths retain their repository defaults and can be overridden
-during planning with `--jobs-csv`, `--inhibitors-csv`, and `--job-inh-csv`.
-Planning hashes every input and writes immutable task specifications plus
-`subset_membership.csv`. Execution fails if any input, including the sealed pair
-file, changes after planning; a changed dataset requires a new experiment root.
+All four paths can be overridden during planning with `--jobs-csv`,
+`--inhibitors-csv`, `--job-inh-csv`, and `--pair-csv`. Planning hashes every
+input and writes immutable task specifications plus `subset_membership.csv`.
+Execution fails if any input changes after planning; a changed dataset requires
+a new experiment root.
 
 The runner exposes these commands:
 

@@ -183,23 +183,21 @@ class FocusedExperimentTests(unittest.TestCase):
             self.assertEqual(config["inference_anchor_counts"], ["all"])
             self.assertIn("no App-App outcomes", config["fixed_selection_source"]["selection_scope"])
 
-    def test_cli_requires_explicit_pair_holdout(self) -> None:
-        with self.assertRaises(SystemExit):
-            run_experiments.parse_args(["plan", "--root", "out"])
-        args = run_experiments.parse_args(
-            ["plan", "--root", "out", "--pair-csv", "new_pair.csv"]
-        )
+    def test_cli_uses_standard_data_paths_by_default(self) -> None:
+        args = run_experiments.parse_args(["plan", "--root", "out"])
         self.assertEqual(args.command, "plan")
-        self.assertEqual(args.pair_csv, Path("new_pair.csv"))
-        with self.assertRaisesRegex(ValueError, "historical pair.csv is contaminated"):
-            run_experiments.build_plan(
-                Path("unused"),
-                "smoke",
-                Path("jobs.csv"),
-                Path("inhibitors.csv"),
-                Path("job_inh.csv"),
-                run_experiments.DEFAULT_DATA / "pair.csv",
-            )
+        self.assertEqual(args.jobs_csv, run_experiments.DEFAULT_DATA / "jobs.csv")
+        self.assertEqual(
+            args.inhibitors_csv, run_experiments.DEFAULT_DATA / "inhibitors.csv"
+        )
+        self.assertEqual(
+            args.job_inh_csv, run_experiments.DEFAULT_DATA / "job_inh.csv"
+        )
+        self.assertEqual(args.pair_csv, run_experiments.DEFAULT_DATA / "pair.csv")
+        override = run_experiments.parse_args(
+            ["plan", "--root", "out", "--pair-csv", "alternate_pair.csv"]
+        )
+        self.assertEqual(override.pair_csv, Path("alternate_pair.csv"))
 
     def test_consolidation_removes_stale_optional_outputs(self) -> None:
         with tempfile.TemporaryDirectory(dir=AUDIT_DIR) as directory:
