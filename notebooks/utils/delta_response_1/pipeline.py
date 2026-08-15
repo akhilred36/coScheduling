@@ -100,6 +100,10 @@ class RunConfig:
     device: str = "auto"
     inference_anchor_counts: list[int | str] = field(default_factory=lambda: ["all"])
     inference_anchor_seed: int = 1701
+    selection_mode: str = "crossed_cv"
+    fixed_final_epochs_by_kind: dict[str, int] | None = None
+    fixed_aggregations_by_kind: dict[str, dict[str, Any]] | None = None
+    fixed_selection_source: dict[str, Any] | None = None
 
 
 def _json_default(value: Any) -> Any:
@@ -144,6 +148,49 @@ def model_candidates_for_kind(config: RunConfig, kind: str) -> list[ModelConfig]
     if not candidates:
         raise ValueError(f"No model candidates configured for {kind}")
     return candidates
+
+
+def validate_selection_config(config: RunConfig) -> None:
+    if config.selection_mode == "crossed_cv":
+        return
+    if config.selection_mode != "fixed_global":
+        raise ValueError("selection_mode must be 'crossed_cv' or 'fixed_global'")
+    kinds = {"low_rank", "generic", "absolute"}
+    for kind in sorted(kinds):
+        if len(model_candidates_for_kind(config, kind)) != 1:
+            raise ValueError(
+                f"fixed_global requires exactly one model candidate for {kind}"
+            )
+    epochs = config.fixed_final_epochs_by_kind
+    if epochs is None or set(epochs) != kinds:
+        raise ValueError(
+            "fixed_global requires fixed_final_epochs_by_kind for low_rank, "
+            "generic, and absolute"
+        )
+    if any(not isinstance(value, int) or value <= 0 for value in epochs.values()):
+        raise ValueError("Fixed final epoch counts must be positive integers")
+    aggregations = config.fixed_aggregations_by_kind
+    if aggregations is None or not {"low_rank", "generic"}.issubset(aggregations):
+        raise ValueError(
+            "fixed_global requires fixed aggregations for low_rank and generic"
+        )
+    for kind in ["low_rank", "generic"]:
+        aggregation = aggregations[kind]
+        primary = aggregation.get("primary_method")
+        if primary not in {"uniform", "median", "kernel", "ood_kernel"}:
+            raise ValueError(f"Invalid fixed primary aggregation for {kind}: {primary}")
+        kernel = aggregation.get("kernel", {})
+        ood = aggregation.get("ood_kernel", {})
+        if "temperature" not in kernel:
+            raise ValueError(f"Fixed {kind} aggregation is missing kernel temperature")
+        if not {"temperature", "quantile", "fallback"}.issubset(ood):
+            raise ValueError(f"Fixed {kind} aggregation is missing OOD parameters")
+        if float(kernel["temperature"]) <= 0 or float(ood["temperature"]) <= 0:
+            raise ValueError("Fixed aggregation temperatures must be positive")
+        if not 0 < float(ood["quantile"]) < 1:
+            raise ValueError("Fixed OOD quantiles must be in (0, 1)")
+        if ood["fallback"] not in {"uniform", "median"}:
+            raise ValueError("Fixed OOD fallback must be uniform or median")
 
 
 def resolve_device(requested: str) -> torch.device:
@@ -421,6 +468,16 @@ def _common_distance_reference(
     return reference
 
 
+def distance_calibration(
+    data: TrainingData,
+    blocks: pd.DataFrame,
+) -> tuple[np.ndarray, ProfileScaler]:
+    scaler = ProfileScaler("base").fit(data.inhibitors)
+    _, inhibitor_profiles = profile_maps(data.jobs, data.inhibitors, scaler)
+    reference = _common_distance_reference(data, blocks, inhibitor_profiles)
+    return reference, scaler
+
+
 def _candidate_statistics(frame: pd.DataFrame) -> tuple[float, float, int]:
     fold_errors = (
         frame.groupby(["victim_id", "heldout_block", "seed"], as_index=False)[
@@ -533,6 +590,14 @@ def _select_aggregation(predictions: pd.DataFrame) -> dict[str, Any]:
         for method, value in selected_by_method.items()
     }
     result["primary_method"] = primary["method"]
+    accuracy_best = min(candidates, key=lambda value: value["validation_log_mae"])
+    result["accuracy_best"] = {
+        "method": accuracy_best["method"],
+        **accuracy_best["parameters"],
+        "validation_log_mae": accuracy_best["validation_log_mae"],
+        "grouped_standard_error": accuracy_best["grouped_standard_error"],
+        "validation_group_count": accuracy_best["validation_group_count"],
+    }
     result["selection_rule"] = {
         "name": "grouped_one_standard_error",
         "grouping": "victim_id and heldout_block after seed averaging",
@@ -563,12 +628,9 @@ def crossed_validation(
     )
     prediction_records: list[dict[str, Any]] = []
     fold_records: list[dict[str, Any]] = []
-    distance_scaler = ProfileScaler("base").fit(data.inhibitors)
+    distance_reference, distance_scaler = distance_calibration(data, blocks)
     _, distance_inhibitor_profiles = profile_maps(
         data.jobs, data.inhibitors, distance_scaler
-    )
-    distance_reference = _common_distance_reference(
-        data, blocks, distance_inhibitor_profiles
     )
     profile_cache: dict[
         tuple[str, str, int], tuple[dict[str, np.ndarray], dict[str, np.ndarray]]
@@ -1354,6 +1416,7 @@ def run(args: argparse.Namespace) -> None:
         )
     evaluation_methods = resolve_evaluation_methods(config.evaluation_method)
     resolve_anchor_budgets(config.inference_anchor_counts)
+    validate_selection_config(config)
     device = resolve_device(config.device)
 
     print("Loading and validating App-Inhibitor training data (pair.csv remains sealed)")
@@ -1392,37 +1455,72 @@ def run(args: argparse.Namespace) -> None:
     blocks = build_inhibitor_blocks(data, config)
     blocks.to_csv(output_dir / "inhibitor_blocks.csv", index=False)
 
-    print("Running crossed leave-one-application/block validation")
-    (
-        model_configs,
-        aggregations,
-        final_epochs,
-        folds,
-        distance_reference,
-        distance_scaler,
-    ) = crossed_validation(data, blocks, config, device, output_dir)
-    model_selection = {}
-    for kind, model_config in model_configs.items():
-        kind_folds = folds[folds["model_kind"] == kind]
-        selected_id = int(
-            kind_folds.groupby("config_id")["best_validation"].mean().idxmin()
-        )
-        selected_folds = kind_folds[kind_folds["config_id"] == selected_id]
-        model_selection[kind] = {
-            "selected_config_id": selected_id,
-            "validation_log_mae": float(selected_folds["best_validation"].mean()),
-            "final_epochs": final_epochs[kind],
-            "selection_source": "crossed App-Inhibitor validation only",
+    if config.selection_mode == "crossed_cv":
+        print("Running crossed leave-one-application/block validation")
+        (
+            model_configs,
+            aggregations,
+            final_epochs,
+            folds,
+            distance_reference,
+            distance_scaler,
+        ) = crossed_validation(data, blocks, config, device, output_dir)
+        model_selection = {}
+        for kind, model_config in model_configs.items():
+            kind_folds = folds[folds["model_kind"] == kind]
+            selected_id = int(
+                kind_folds.groupby("config_id")["best_validation"].mean().idxmin()
+            )
+            selected_folds = kind_folds[kind_folds["config_id"] == selected_id]
+            model_selection[kind] = {
+                "selected_config_id": selected_id,
+                "validation_log_mae": float(selected_folds["best_validation"].mean()),
+                "final_epochs": final_epochs[kind],
+                "selection_source": "crossed App-Inhibitor validation only",
+            }
+        crossed_fold_count = len(folds)
+        crossed_fold_count_by_model = folds.groupby("model_kind").size().to_dict()
+        final_epoch_source = "model_specific_crossed_cv_median"
+    else:
+        print("Using globally frozen model and aggregation selection; skipping crossed CV")
+        model_configs = {
+            kind: model_candidates_for_kind(config, kind)[0]
+            for kind in ["low_rank", "generic", "absolute"]
         }
+        aggregations = dict(config.fixed_aggregations_by_kind or {})
+        final_epochs = dict(config.fixed_final_epochs_by_kind or {})
+        distance_reference, distance_scaler = distance_calibration(data, blocks)
+        pd.DataFrame({"nearest_anchor_distance": distance_reference}).to_csv(
+            output_dir / "validation_distance_reference.csv", index=False
+        )
+        source = config.fixed_selection_source or {}
+        source_models = source.get("model_selection", {})
+        model_selection = {
+            kind: {
+                "selected_config_id": 0,
+                "validation_log_mae": source_models.get(kind, {}).get(
+                    "validation_log_mae"
+                ),
+                "final_epochs": final_epochs[kind],
+                "selection_source": "globally frozen App-Inhibitor selection",
+            }
+            for kind in model_configs
+        }
+        crossed_fold_count = 0
+        crossed_fold_count_by_model = {}
+        final_epoch_source = "fixed_global_selection"
     selection = {
+        "selection_mode": config.selection_mode,
+        "fixed_selection_source": config.fixed_selection_source,
         "model_configs": {
             kind: asdict(model_config) for kind, model_config in model_configs.items()
         },
         "aggregations": aggregations,
         "model_selection": model_selection,
-        "final_epochs_from_model_specific_cv_median": final_epochs,
-        "crossed_fold_count": len(folds),
-        "crossed_fold_count_by_model": folds.groupby("model_kind").size().to_dict(),
+        "final_epochs": final_epochs,
+        "final_epoch_source": final_epoch_source,
+        "crossed_fold_count": crossed_fold_count,
+        "crossed_fold_count_by_model": crossed_fold_count_by_model,
         "ood_distance_calibration": {
             "source": "crossed_validation_query_to_uncensored_support_distances",
             "coordinate_system": "single base-feature scaler fit to inhibitor profiles only",
@@ -1449,6 +1547,11 @@ def run(args: argparse.Namespace) -> None:
             "unknown_application_anchors_available_at_inference": True,
             "app_app_outcomes_used_for_fitting": False,
             "one_known_definition": "exactly_one_known_endpoint",
+            "global_hyperparameter_selection_scope": (
+                (config.fixed_selection_source or {}).get("selection_scope")
+                if config.selection_mode == "fixed_global"
+                else "training applications in this run only"
+            ),
         },
         "model_seed_count": len(config.final_seeds),
         "elapsed_seconds": time.time() - started,

@@ -408,6 +408,91 @@ class DiagnosticAndOODTests(unittest.TestCase):
 
 
 class SelectionAndLeakageTests(unittest.TestCase):
+    def test_fixed_global_selection_skips_crossed_validation(self) -> None:
+        data, blocks = crossed_data()
+        aggregation = {
+            "uniform": {},
+            "median": {},
+            "kernel": {"temperature": 1.0},
+            "ood_kernel": {
+                "temperature": 1.0,
+                "quantile": 0.95,
+                "fallback": "median",
+            },
+            "primary_method": "uniform",
+        }
+        config = {
+            "evaluation_method": "random_split",
+            "selection_mode": "fixed_global",
+            "model_candidates_by_kind": {
+                kind: [{}] for kind in ["low_rank", "generic", "absolute"]
+            },
+            "fixed_final_epochs_by_kind": {
+                "low_rank": 2,
+                "generic": 3,
+                "absolute": 4,
+            },
+            "fixed_aggregations_by_kind": {
+                "low_rank": aggregation,
+                "generic": aggregation,
+            },
+            "fixed_selection_source": {
+                "selection_scope": "all application App-Inhibitor data",
+                "model_selection": {
+                    kind: {"validation_log_mae": 0.1}
+                    for kind in ["low_rank", "generic", "absolute"]
+                },
+            },
+            "final_seeds": [0],
+            "inference_anchor_counts": ["all"],
+            "device": "cpu",
+        }
+        distance_scaler = ProfileScaler("base").fit(data.inhibitors)
+        with tempfile.TemporaryDirectory(dir=AUDIT_DIR) as directory:
+            root = Path(directory)
+            config_path = root / "config.json"
+            config_path.write_text(json.dumps(config))
+            args = argparse.Namespace(
+                jobs_csv=Path("unused-jobs.csv"),
+                inhibitors_csv=Path("unused-inhibitors.csv"),
+                job_inh_csv=Path("unused-responses.csv"),
+                pair_csv=Path("must-not-open.csv"),
+                output_dir=root / "outputs",
+                config=config_path,
+                eval_method=None,
+                training_apps=None,
+                cv_seeds=None,
+                final_seeds=None,
+                inhibitor_blocks=None,
+                max_epochs=None,
+                patience=None,
+                batches_per_epoch=None,
+                bootstrap_samples=None,
+                skip_holdout=True,
+            )
+            with mock.patch.object(
+                pipeline, "load_training_data", return_value=data
+            ), mock.patch.object(
+                pipeline, "build_inhibitor_blocks", return_value=blocks
+            ), mock.patch.object(
+                pipeline,
+                "distance_calibration",
+                return_value=(np.asarray([0.5, 1.0]), distance_scaler),
+            ), mock.patch.object(
+                pipeline, "crossed_validation"
+            ) as crossed, mock.patch.object(
+                pipeline, "train_final_models", return_value=({}, {})
+            ) as final, mock.patch.object(pipeline, "load_pair_holdout") as pair_loader:
+                pipeline.run(args)
+
+            crossed.assert_not_called()
+            pair_loader.assert_not_called()
+            self.assertEqual(final.call_args.args[3], config["fixed_final_epochs_by_kind"])
+            selection = json.loads((args.output_dir / "selection.json").read_text())
+            self.assertEqual(selection["selection_mode"], "fixed_global")
+            self.assertEqual(selection["crossed_fold_count"], 0)
+            self.assertEqual(selection["final_epoch_source"], "fixed_global_selection")
+
     def test_model_candidates_can_be_configured_per_model_kind(self) -> None:
         raw = {
             "model_candidates_by_kind": {
@@ -527,6 +612,7 @@ class SelectionAndLeakageTests(unittest.TestCase):
                 )
         selected = pipeline._select_aggregation(pd.DataFrame(rows))
         self.assertEqual(selected["primary_method"], "uniform")
+        self.assertEqual(selected["accuracy_best"]["method"], "ood_kernel")
         self.assertEqual(
             selected["selection_rule"]["complexity_order"],
             ["uniform", "median", "kernel", "ood_kernel"],

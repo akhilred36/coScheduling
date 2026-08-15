@@ -461,6 +461,16 @@ and absolute-response regression:
 Use fixed validation queries within each fold and evaluate several random
 initialization seeds. Do not resample the validation set every epoch.
 
+For the focused cross-condition paper study, select one global low-rank recipe
+through this App-Inhibitor protocol using all applications, then freeze its
+architecture, optimizer, epoch count, and aggregation settings before opening
+the App-App holdout. This is a deliberate transductive hyperparameter-selection
+design: applications that are unknown in a particular restricted fit may have
+influenced the global recipe through another tuning fold. Every condition must
+still refit model weights and model scalers using only its configured training
+applications. Report this distinction explicitly rather than describing the
+restricted study as fully inductive model selection.
+
 After selecting each formulation, train final models on all valid
 App-Inhibitor responses. Each model's predetermined epoch count is the median
 of its own selected crossed-fold best epochs. Budgets and seed treatment are
@@ -510,6 +520,11 @@ and model-selection fitting. Their measured App-Inhibitor responses remain
 available as inference anchors because the delta-response task assumes victim
 anchor measurements at prediction time. App-App outcomes remain sealed until
 all fitting and selection are complete in every tier.
+
+The focused paper runner uses the globally frozen transductive recipe described
+in Section 11.3. In that runner, "excluded from model-selection fitting" applies
+to per-condition weight and scaler fitting; it does not claim that an unknown
+application was absent from the earlier global hyperparameter search.
 
 ### 12.2 Self-pairs
 

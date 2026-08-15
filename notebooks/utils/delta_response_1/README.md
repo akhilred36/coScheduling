@@ -31,7 +31,8 @@ App-Inhibitor development and use synthetic pair data for end-to-end tests.
 
 A newly collected untouched App-App dataset is required for any future claim
 about transfer performance. The pipeline deliberately loads a supplied pair
-CSV only after crossed validation, selection, and final model fitting.
+CSV only after crossed validation or fixed-global selection and final model
+fitting.
 
 ## Data Inputs
 
@@ -102,6 +103,15 @@ responses remain available as inference anchors. This matches the intended
 delta-response inference setting and the response-set inputs used by the
 reference `few_shot` model. Unknown application profiles and responses are
 excluded from parameter, epoch, aggregation, and model-scaler fitting.
+
+The focused paper runner described below makes one explicit exception for its
+cross-condition comparison: it selects one global architecture, optimizer,
+epoch count, and aggregation recipe using App-Inhibitor data from all
+applications, then freezes that recipe for every endpoint tier and training
+size. Model weights and scalers are still refitted using only the applications
+allowed by each condition. Consequently, its `one_known` and `zero_shot`
+results are transductive with respect to hyperparameter selection, although
+App-App outcomes remain completely sealed during tuning.
 
 The restricted tiers accept a comma-separated fitting set through
 `--training-apps`. When that option is omitted for the repository's standard
@@ -345,8 +355,12 @@ An invocation runs these stages in order:
 1. Load and validate App-Inhibitor inputs without opening a pair CSV.
 2. Quarantine invalid responses and report response replicates.
 3. Build deterministic inhibitor blocks.
-4. Run crossed validation for every model candidate, model kind, and CV seed.
-5. Select model configurations, model-specific epochs, and aggregations.
+4. In `crossed_cv` mode, run crossed validation for every model candidate,
+   model kind, and CV seed, then select configurations, epochs, and
+   aggregations.
+5. In `fixed_global` mode, validate the supplied frozen recipe, skip crossed
+   model selection, and construct only the task-local physical OOD distance
+   reference.
 6. Fit final low-rank, generic, and absolute models on all valid rows from the
    applications allowed by the selected evaluation tier.
 7. Stop and write a complete report when `--skip-holdout` is active.
@@ -364,8 +378,8 @@ cd notebooks/utils/delta_response_1
 /home/akhil/hpcResearch/python_venvs/ml_analysis/bin/python --version
 ```
 
-The environment must provide NumPy, pandas, SciPy, scikit-learn, and PyTorch.
-Device selection defaults to CUDA when available and CPU otherwise.
+The environment must provide NumPy, pandas, SciPy, scikit-learn, PyTorch, and
+`tqdm`. Device selection defaults to CUDA when available and CPU otherwise.
 
 ## Running The Pipeline
 
@@ -474,11 +488,12 @@ configuration can override them:
   "temperatures": [0.1, 0.3, 1.0, 3.0, 10.0],
   "ood_quantiles": [0.9, 0.95, 0.99],
   "ood_fallbacks": ["uniform", "median"],
-  "inference_anchor_counts": [4, 16, 64, "all"],
+  "inference_anchor_counts": ["all"],
   "inference_anchor_seed": 1701,
   "bootstrap_samples": 1000,
   "bootstrap_seed": 923,
   "device": "auto",
+  "selection_mode": "crossed_cv",
   "model_candidates": [
     {
       "feature_set": "base",
@@ -511,7 +526,7 @@ The following command-line options override corresponding JSON values:
 --patience COUNT
 --batches-per-epoch COUNT
 --bootstrap-samples COUNT
---eval-method {random_split,one_known,zero_shot}
+--eval-method {both,random_split,one_known,zero_shot}
 --training-apps APP_ID,APP_ID,...
 ```
 
@@ -532,198 +547,157 @@ other deviations remain auditable.
 
 ## Paper Experiment Runner
 
-`run_experiments.py` provides the preregistered staged robustness study. It is
-separate from `pipeline.py`: the pipeline remains one scientific fit/evaluation,
-while the runner generates immutable task specifications, executes isolated
-pipeline subprocesses, resumes completed work, and consolidates outputs.
+`run_experiments.py` implements the focused paper study around three questions:
+accuracy by endpoint-familiarity tier, accuracy by training-application count,
+and selection of one global low-rank recipe. It deliberately omits synthetic
+stress sweeps, fold-sensitivity sweeps, and anchor-budget sweeps.
 
-The runner implements:
+The global low-rank search is sequential:
 
-- A six-candidate base/augmented feature and rank `{1, 2, 4}` architecture
-  screen.
-- A staged AdamW learning-rate/weight-decay grid followed by capacity checks.
-- Inhibitor-block sensitivity at `(blocks, seed)` values `(3,1701)`,
-  `(4,1701)`, `(6,1701)`, `(4,1702)`, and `(4,1703)`.
-- One-factor synthetic sweeps over data size, true rank, noise, censoring,
-  missing edges, response replicates, outliers, target OOD shift, and transfer
-  mismatch, plus predefined combined-adversity conditions.
-- Deterministic uncensored response-observation budgets `4`, `16`, `64`, and
-  `all`. These calibration subsets are nested and affect inference only; model
-  training and crossed validation remain unchanged. A requested budget larger
-  than the available uncensored observations means "up to" that budget and is
-  marked by `anchor_budget_feasible=false`; requested, actual, available, and
-  distinct-inhibitor counts are all saved.
-- Training-application learning curves for sizes `2` through `8`, using ten
-  balanced nested application orderings and five synthetic dataset seeds in
-  the standard profile.
-- Paired `one_known` and `zero_shot` evaluation from the same fitted checkpoint
-  for each training subset.
+1. Feature set `{base, augmented}` and rank `{1, 2, 4}`.
+2. AdamW learning rate `{3e-4, 1e-3, 3e-3}` and weight decay
+   `{0, 1e-4, 1e-3}` around the selected architecture.
+3. `(hidden_dim, embedding_dim)` in `{(4,2), (8,4), (16,8)}` around the
+   selected architecture and optimizer.
 
-Architecture, optimizer, and capacity choices are carried forward separately
-for low-rank, generic, and absolute models. Synthetic stress and training-size
-tasks deliberately use the fixed preregistered default rather than an adaptive
-winner from the real-data tuning stages; this isolates the controlled method
-study and avoids making synthetic results conditional on repeated real-fold
-selection.
+Generic-potential and absolute-response models use the fixed default
+architecture as baselines. Their epoch and generic-aggregation settings are
+fixed from the same final App-Inhibitor tuning lineage. The resulting
+architecture, optimizer, epoch counts, and aggregation rules are then reused
+without crossed model selection in every App-App evaluation task. Each task
+still refits weights and scalers from its allowed training applications.
+For the primary low-rank recipe, the runner freezes the aggregation candidate
+with minimum grouped CV log MAE rather than the general pipeline's simpler
+one-standard-error choice.
 
-The standard plan is intentionally large. Inspect `experiment_manifest.csv`
-and run individual stages before launching the entire study.
+The standard evaluation matrix contains:
 
-### Plan A Study
+- One `random_split` fit using all ten applications and all pair rows.
+- Training sizes `2` through `8` for restricted fits.
+- Ten balanced cyclic rotations of one deterministic application ordering.
+- One fit per `(split, size)` with paired `one_known` and `zero_shot`
+  evaluation from the same checkpoints.
+- All available uncensored anchors at inference; there is no anchor-budget
+  sweep.
+
+The standard plan has 74 tasks: three tuning tasks, one `random_split` task,
+and 70 restricted tasks. The `smoke` profile uses one seed, two epochs, one
+split, and training size two for integration testing.
+
+The standard profile is preregistered for exactly ten applications. Planning
+rejects a different application count instead of silently changing the task
+matrix.
+
+### Plan And Run
+
+Planning requires an explicit pair path so the historical contaminated pair
+file cannot be selected through a default:
 
 ```bash
 PY=/home/akhil/hpcResearch/python_venvs/ml_analysis/bin/python
-ROOT=audit_outputs/experiments/paper_v1
+ROOT=audit_outputs/experiments/focused_paper_v1
+PAIR=/path/to/new_untouched_pair.csv
 
 $PY run_experiments.py plan \
   --root "$ROOT" \
   --profile standard \
-  --suites real,stress,learning_curve
+  --pair-csv "$PAIR"
 
+$PY run_experiments.py tune --root "$ROOT" --resume
+$PY run_experiments.py evaluate --root "$ROOT" --resume
 $PY run_experiments.py status --root "$ROOT"
 ```
 
-Profiles are:
+The App-Inhibitor paths retain their repository defaults and can be overridden
+during planning with `--jobs-csv`, `--inhibitors-csv`, and `--job-inh-csv`.
+Planning hashes every input and writes immutable task specifications plus
+`subset_membership.csv`. Execution fails if any input, including the sealed pair
+file, changes after planning; a changed dataset requires a new experiment root.
 
-- `smoke`: one model seed, two epochs, one balanced application split, and a
-  reduced synthetic scenario set.
-- `standard`: five model seeds, 80 epochs, 1,000 bootstrap samples, five
-  synthetic seeds, and ten balanced nested application splits.
-- `extended`: ten model seeds, 160 epochs, 5,000 bootstrap samples, and an
-  additional profile-diverse nested-split sensitivity analysis.
+The runner exposes these commands:
 
-Planning generates synthetic CSVs and `subset_membership.csv`, but does not fit
-models. Every generated dataset has a `scenario_summary.json` containing the
-requested condition, realized censoring/missingness, row counts, and file
-hashes.
-
-### Run Stages
-
-```bash
-# Architecture, optimizer, capacity, and fold sensitivity. Dependencies are
-# included automatically when a later stage is requested.
-$PY run_experiments.py run \
-  --root "$ROOT" \
-  --stages real_fold_robustness \
-  --resume
-
-# Synthetic one-factor and combined stress tests.
-$PY run_experiments.py run \
-  --root "$ROOT" \
-  --stages synthetic_stress \
-  --resume
-
-# Application-count learning curves for one-known and zero-shot transfer.
-$PY run_experiments.py run \
-  --root "$ROOT" \
-  --stages training_size_learning_curve \
-  --resume
+```text
+plan        Create plan.json, experiment_spec.json, input hashes, and subsets.
+tune        Run tune_architecture, tune_optimizer, and tune_capacity.
+evaluate    Run evaluate_random_split and evaluate_training_size.
+status      Refresh and summarize experiment_manifest.csv.
+consolidate Rebuild paper-facing CSV and JSON outputs without fitting models.
 ```
 
-Use `--max-tasks COUNT` for bounded batches and `--max-workers COUNT` only when
-the allocated hardware can support concurrent PyTorch subprocesses. One worker
-is the safe default for a single GPU. Each retry receives a new attempt
-directory; prior logs and partial outputs are never overwritten.
+`tune` and `evaluate` accept `--max-workers`, `--max-tasks`,
+`--progress-interval`, and `--resume`. `evaluate` also accepts
+`--[no-]include-predictions`; `tune` always consolidates without predictions.
+With `--resume`, bounded batches advance past successful target tasks while
+still including required tuning dependencies.
 
-Omitting `--stages` selects the entire plan. For the full `standard` plan shown
-above, that means 508 tasks. Prefer the stage-specific commands above or use
-`--max-tasks` when a bounded run is intended.
+`evaluate` automatically includes incomplete tuning dependencies. Use
+`--max-tasks COUNT` for bounded batches and `--max-workers COUNT` only when the
+allocated hardware can support concurrent PyTorch subprocesses. One worker is
+the safe default for a single GPU.
 
-### Progress, Logs, And Interruption
+Each retry receives a new attempt directory. Standard output and error are
+retained under that attempt, progress heartbeats report the latest pipeline
+line, and `--resume` skips successful tasks only when input, code, environment,
+configuration, and dependency-selection fingerprints still match.
 
-The runner announces each task when it starts and prints the task attempt-log
-directory. Pipeline subprocesses run with unbuffered output, with stdout and
-stderr retained as `stdout.log` and `stderr.log` below that attempt directory.
-Crossed validation reports completed model fits, total model fits, percentage,
-and elapsed time. The runner also prints a heartbeat every 30 seconds while a
-task is active, including its elapsed time and latest pipeline stdout line.
-Change the runner heartbeat cadence with `--progress-interval SECONDS`; the
-value must be positive.
+### Accuracy Comparisons
 
-A standard real-data architecture task performs 3,600 cross-validation model
-fits, with an upper bound of 288,000 training epochs. It can therefore run for
-hours even when execution is healthy. The runner's main thread waits for each
-pipeline worker during this time; an interrupted traceback ending in
-`waiter.acquire()` indicates that the runner was waiting for that worker, not
-that this lock was the source of a deadlock.
+The primary paper metric is non-self directional log MAE. Consolidation also
+retains log RMSE, raw MAE/RMSE, median multiplicative error, Spearman, per-victim
+metrics, paired cluster bootstrap results, and complete predictions.
 
-Pressing Ctrl-C interrupts the active pipeline, prints a concise resume message,
-and exits with status `130` instead of exposing the executor's internal wait
-traceback. The interrupted attempt and its partial outputs remain immutable and
-are not treated as successful. Re-running with `--resume` skips completed tasks
-whose execution fingerprints still match and starts incomplete or failed tasks
-in a new numbered attempt directory.
+Two eval-method views are produced:
 
-For example, resume only the architecture stage with a ten-second runner
-heartbeat:
+- `protocol_native`: each tier's metric on its naturally eligible pair rows.
+- `matched_random_split`: predictions from the one full-data fit restricted to
+  the exact non-self pair manifest of a `one_known` or `zero_shot` condition.
 
-```bash
-$PY run_experiments.py run \
-  --root "$ROOT" \
-  --stages real_architecture \
-  --progress-interval 10 \
-  --resume
-```
-
-Real-data tasks always invoke `pipeline.py --skip-holdout` and never pass a pair
-path. Pair evaluation in this runner is synthetic. Do not substitute the
-historical real `pair.csv`; a future untouched holdout requires a separately
-authorized final evaluation after the experiment design is frozen.
+The matched view separates training-restriction effects from changes in pair
+difficulty. One-known and zero-shot remain different endpoint-familiarity sets.
+Balanced rotations reduce application-composition confounding across the full
+learning curve. Their between-split SD is descriptive because the cyclic subsets
+overlap; it is not converted to an independence-based standard error. Model
+seeds are repeated fits, not independent samples. The size-8 zero-shot point has
+only two unknown applications and one non-self pair, so it is marked
+`low_support_zero_shot=true`.
 
 ### Consolidated Results
 
-Successful runs are consolidated automatically. They can also be rebuilt
-without rerunning models:
+Successful commands consolidate automatically. Results can also be rebuilt:
 
 ```bash
 $PY run_experiments.py consolidate --root "$ROOT" --include-predictions
 ```
 
-`consolidated/` contains plain CSV files suitable for pandas:
+`consolidated/` contains:
 
-- `fold_metrics.csv`: crossed victim/block/seed/model records with full task
-  provenance and resolved candidate fields.
-- `candidates.csv`: every model-kind-specific candidate in every staged run.
-- `selections.csv`: selected model configuration, epoch count, aggregation,
-  kernel temperature, and OOD rule.
-- `metrics_long.csv`: tidy overall, self-averaged, non-self, per-victim,
-  macro-victim, seed, bootstrap, and paired-difference metrics.
-- `predictions.csv`: complete synthetic directional predictions with scenario,
-  training-subset, endpoint-familiarity, and anchor-budget columns.
-- `pair_eligibility.csv`: canonical pair inclusion and known-endpoint counts.
-- `data_conditions.csv`: requested and realized synthetic conditions.
-- `learning_curve_replicates.csv`: split- and generator-level non-self learning
-  curve estimates.
-- `learning_curve_summary.csv`: split-averaged estimates with between-generator
-  standard deviations and standard errors.
-- `failures.csv`: failed task metadata; subprocess stdout/stderr remain under
-  each task attempt.
+- `global_selection.json`: the frozen recipe, provenance, and transductive
+  selection disclosure.
+- `architecture_search.csv`: every low-rank tuning candidate and mean crossed
+  App-Inhibitor validation log MAE.
+- `accuracy_by_eval_method.csv`: protocol-native and matched comparisons.
+- `accuracy_by_training_size.csv`: split-level native learning-curve metrics.
+- `learning_curve_summary.csv`: means and descriptive between-split SD for
+  sizes `2..8`.
+- `metrics_long.csv`: all metric scopes and bootstrap diagnostics.
+- `predictions.csv`: complete directional predictions when enabled.
+- `pair_eligibility.csv`: canonical pair inclusion and endpoint familiarity.
+- `fold_metrics.csv`, `candidates.csv`, and `selections.csv`: tuning audit data.
+- `failures.csv`: failed task metadata; full logs remain in attempt directories.
 
-Typical notebook loading requires only pandas:
+For example:
 
 ```python
 from pathlib import Path
 import pandas as pd
 
-root = Path("audit_outputs/experiments/paper_v1/consolidated")
-metrics = pd.read_csv(root / "metrics_long.csv")
-predictions = pd.read_csv(root / "predictions.csv")
-learning_curve = metrics.query(
-    "stage == 'training_size_learning_curve' "
-    "and scope == 'overall_non_self' "
-    "and metric == 'log_mae'"
+root = Path("audit_outputs/experiments/focused_paper_v1/consolidated")
+accuracy = pd.read_csv(root / "accuracy_by_eval_method.csv")
+learning = pd.read_csv(root / "learning_curve_summary.csv")
+primary = accuracy.query(
+    "is_global_primary_low_rank and metric == 'log_mae'"
 )
 ```
-
-For the training-size study, `split_id` is the repeated composition unit and
-the size-`k` set is a prefix of the same ordering. Pair-cluster bootstrap files
-are conditional diagnostics within one generated dataset and fitted lineage;
-they are not population-level uncertainty across applications. Use
-`learning_curve_summary.csv` for the primary across-generator uncertainty and
-retain split-level variation from `learning_curve_replicates.csv`. Model seeds
-are repeated fits rather than independent observations. Size-8 zero-shot
-results have only two unknown endpoints and should be accompanied by pair
-counts and a sensitivity analysis excluding that point.
 
 ## Outputs
 
@@ -734,9 +708,6 @@ Every run writes:
 - `rejected_job_inh.csv`: quarantined response rows and reasons.
 - `duplicate_job_inh_keys.csv`: preserved response-replicate rows.
 - `inhibitor_blocks.csv`: deterministic inhibitor block assignments.
-- `crossed_validation_folds.csv`: model/fold/seed training selection records.
-- `crossed_validation_predictions.csv`: all potential-model CV predictions.
-- `crossed_validation_summary.csv`: mean CV errors by candidate and method.
 - `validation_distance_reference.csv`: common-coordinate OOD distances.
 - `selection.json`: selected model configurations, epochs, and aggregations.
 - `checkpoints/*.pt`: final model state, model configuration, scaler, seed, and
@@ -744,6 +715,15 @@ Every run writes:
 - `run_report.json`: completion status, holdout state, calibration provenance,
   target semantics, endpoint-familiarity protocol, fitting/unknown application
   lists, evaluated pair counts, selected choices, and runtime metadata.
+
+Runs using crossed selection additionally write:
+
+- `crossed_validation_folds.csv`: model/fold/seed training selection records.
+- `crossed_validation_predictions.csv`: all potential-model CV predictions.
+- `crossed_validation_summary.csv`: mean CV errors by candidate and method.
+
+Fixed-global evaluation runs deliberately omit these three files and record a
+zero crossed-fold count in `selection.json`.
 
 Runs that evaluate a synthetic or new App-App holdout additionally write:
 
@@ -792,7 +772,9 @@ distances, clipped prediction support, finite-range guards, weighted and
 nonlinear diagnostics, shared low-rank checkpoints, paired bootstrap draws,
 pair uniqueness, missing profiles, endpoint-tier disjointness, restricted
 training/scaler inputs, full inference-anchor availability, pair-load ordering,
-and holdout-free completion.
+holdout-free completion, fixed-global CV bypass, immutable input hashes,
+balanced plan topology, bounded resume behavior, and stale consolidation
+cleanup.
 
 ## Limitations
 
