@@ -751,6 +751,30 @@ are written below `evaluations/one_known/` and `evaluations/zero_shot/`.
 Undefined nonlinear diagnostics remain `NaN` by design. Prediction and metric
 fields are finite and validated against the observed target support.
 
+## Experiment Analysis And Plots
+
+After consolidation, generate paper-oriented plots and derived summary tables:
+
+```bash
+/home/akhil/hpcResearch/python_venvs/ml_analysis/bin/python analyze_experiments.py \
+  --root experiments
+```
+
+By default, results are written under `experiments/analysis/`. The script
+creates PNG and PDF versions of model-selection, endpoint-familiarity,
+learning-curve, matched-fit, calibration, per-application, pairwise-error,
+diagnostic, paired-bootstrap, and censoring-stratum plots. It also writes the
+derived values behind the plots under `analysis/tables/`, a `figure_index.csv`,
+and an `analysis_summary.json` containing the experiment completion status and
+interpretation caveats.
+
+Use `--comparison-size COUNT` to choose the restricted-fit size shown in the
+endpoint comparison. Without it, the script selects the largest size not
+flagged as low-support zero-shot. Use `--formats png pdf svg` to change output
+formats. Prediction-level plots require consolidation with
+`--include-predictions`; aggregate plots are still generated when
+`predictions.csv` is absent.
+
 ## Tests
 
 Run the implementation and regression suite:

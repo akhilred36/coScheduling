@@ -1,4 +1,5 @@
 outputs/
+experiments/
 audit_outputs/**/*.csv
 audit_outputs/**/requested_run_config.json
 audit_outputs/**/data_validation_summary.json
