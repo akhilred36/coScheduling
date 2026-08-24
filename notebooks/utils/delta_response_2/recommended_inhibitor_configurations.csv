@@ -1,0 +1,21 @@
+priority_tier,design_set,candidate_id,msg_size_bytes,wait_time_us,peer_count,comm_sparsity,comm_mode,target_app,target_mpi_fraction,predicted_mpi_fraction,purpose,pilot_action,coschedule_action
+0,repair,REPAIR-500-4,500,5000,4,0.01,d,,,Recover missing isolated profile for 8_500_5000_0.01,Rerun four isolated repetitions,Collect missing victim rows only after profile validation
+0,repair,REPAIR-500-22,500,5000,22,0.05,d,,,Recover missing isolated profile for 8_500_5000_0.05,Rerun four isolated repetitions,Collect missing victim rows only after profile validation
+0,repair,REPAIR-2000-45-W0,2000,0,45,0.1,d,,,Recover missing isolated profile for 8_2000_0_0.1,Rerun four isolated repetitions,Collect missing victim rows only after profile validation
+0,repair,REPAIR-2000-45-W100,2000,100,45,0.1,d,,,Recover missing isolated profile for 8_2000_100_0.1,Rerun four isolated repetitions,Collect missing victim rows only after profile validation
+0,repair,REPAIR-4000-45-W0,4000,0,45,0.1,d,,,Recover missing isolated profile for 8_4000_0_0.1,Rerun four isolated repetitions,Collect missing victim rows only after profile validation
+0,repair,REPAIR-4000-45-W100,4000,100,45,0.1,d,,,Recover missing isolated profile for 8_4000_100_0.1,Rerun four isolated repetitions,Collect missing victim rows only after profile validation
+1,minimum,AMG-45,9472,62000,45,0.100671141,d,amg,0.037308,0.038,Fill the 4-20 KB hole at AMG-like rate and MPI fraction,Three 120 s pilots then four 360 s validations,Full ten-victim sweep if all profile gates pass
+2,minimum,LAG-6,791,634,6,0.013422819,d,laghos,0.165878,0.176,Capture tiny-message high-rate Laghos endpoint,Three 120 s pilots then four 360 s validations,Full ten-victim sweep if all profile gates pass
+3,minimum,BEA-22,546432,139472,22,0.049217002,d,beatnik,0.251189,0.287,Cross large messages with low fanout at high byte rate,Three 120 s pilots then four 360 s validations,Full sweep only if all profile gates pass
+4,minimum,QS-1,210,172833,1,0.002237136,d,quicksilver,0.454222,0.001,Sentinel for low traffic with high MPI residency,Three 120 s pilots,Do not coschedule until MPI-residency mode exists and passes gates
+5,minimum,TRI-1,1432391,16897,1,0.002237136,d,tricount,0.539874,0.277,High-byte-rate sparse endpoint and MPI-residency sentinel,Three 120 s pilots,Do not coschedule until MPI-residency mode exists and passes gates
+6,minimum,KRI-1,1281840,518406,1,0.002237136,d,kripke,0.047973,0.011,Representative large-message very-low-rate endpoint,Three 120 s pilots,Do not coschedule until MPI-residency mode exists and passes gates
+7,minimum,LAG-22-C,791,3453,22,0.049217002,d,laghos,0.165878,0.074,Matched-rate fanout control for LAG-6,Three 120 s pilots,Use as mechanism diagnostic before any full sweep
+8,minimum,AMG-16-C,9472,21798,16,0.035794183,d,amg,0.037308,0.042,Matched-rate fanout control for AMG-45,Three 120 s pilots,Use as mechanism diagnostic before any full sweep
+9,expanded,LAM-1,1465695,340423,1,0.002237136,d,lammps,0.048996,0.019,Exact LAMMPS large-message low-rate endpoint,Four 360 s isolated repetitions,Wait for MPI-residency mode and profile gate
+10,expanded,FIE-1,2542163,237894,1,0.002237136,d,fiesta,0.182893,0.045,Exact Fiesta maximum-message-size endpoint,Four 360 s isolated repetitions,Wait for MPI-residency mode and profile gate
+11,expanded,MV-8,47103,52834,8,0.017897092,d,minivite,0.138983,0.038,Fill medium-size moderate-rate MiniVite hole,Four 360 s isolated repetitions,Wait for MPI-residency mode and profile gate
+12,expanded,MF-8,56312,202304,8,0.017897092,d,minife,0.035032,0.012,Separate MiniFE from MiniVite at similar message size,Four 360 s isolated repetitions,Wait for MPI-residency mode and profile gate
+13,expanded,BEA-45-C,546432,286019,45,0.100671141,d,beatnik,0.251189,0.287,Matched-rate fanout control for BEA-22,Four 360 s isolated repetitions,Use as mechanism diagnostic before any full sweep
+14,expanded,TRI-134-C,1432391,2198321,134,0.299776286,d,tricount,0.539874,0.310,Dense burst control at TriCount-like average traffic,Four 360 s isolated repetitions,Wait for MPI-residency mode and profile gate

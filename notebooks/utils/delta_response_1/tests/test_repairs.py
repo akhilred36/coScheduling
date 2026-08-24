@@ -188,6 +188,14 @@ class EvaluationProtocolTests(unittest.TestCase):
         by_budget = result.set_index("anchor_budget")["log_mae"]
         self.assertAlmostEqual(by_budget["4"], 0.0)
         self.assertGreater(by_budget["all"], 0.0)
+        all_metrics = result.set_index("anchor_budget").loc["all"]
+        self.assertAlmostEqual(all_metrics["raw_mae"], 1.0)
+        self.assertAlmostEqual(all_metrics["raw_mape"], 50.0)
+        self.assertAlmostEqual(all_metrics["raw_mse"], 1.0)
+        self.assertAlmostEqual(all_metrics["raw_rmse"], 1.0)
+        self.assertAlmostEqual(
+            all_metrics["log_mse"], all_metrics["log_rmse"] ** 2
+        )
 
     def test_random_split_resolves_every_application_for_training(self) -> None:
         data, _ = crossed_data()

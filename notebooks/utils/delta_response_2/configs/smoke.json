@@ -1,0 +1,14 @@
+{
+  "protocol": "random_split",
+  "app_app_status": "historical_diagnostic_only",
+  "inhibitor_blocks": 2,
+  "fold_schemes": ["profile"],
+  "seeds": [0],
+  "capacities": [[8, 4]],
+  "optimizer_steps": 2,
+  "batch_size": 8,
+  "checkpoint_interval": 1,
+  "nearest_per_application": 2,
+  "bootstrap_samples": 20,
+  "device": "cpu"
+}

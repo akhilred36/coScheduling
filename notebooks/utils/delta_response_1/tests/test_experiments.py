@@ -136,6 +136,25 @@ class FocusedExperimentTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "create a new immutable plan"):
                 run_experiments.verify_planned_inputs(random[0])
 
+    def test_random_split_only_plan_omits_restricted_evaluations(self) -> None:
+        with tempfile.TemporaryDirectory(dir=AUDIT_DIR) as directory:
+            root = Path(directory)
+            paths = write_plan_inputs(root)
+            tasks = run_experiments.build_plan(
+                root,
+                "standard",
+                paths["jobs"],
+                paths["inhibitors"],
+                paths["job_inh"],
+                paths["pair"],
+                random_split_only=True,
+            )
+            self.assertEqual(
+                [task["stage"] for task in tasks],
+                [*run_experiments.TUNING_STAGES, "evaluate_random_split"],
+            )
+            self.assertFalse((root / "subset_membership.csv").exists())
+
     def test_evaluation_config_freezes_dependency_selection(self) -> None:
         selection = {
             "model_configs": {
@@ -194,6 +213,11 @@ class FocusedExperimentTests(unittest.TestCase):
             args.job_inh_csv, run_experiments.DEFAULT_DATA / "job_inh.csv"
         )
         self.assertEqual(args.pair_csv, run_experiments.DEFAULT_DATA / "pair.csv")
+        self.assertFalse(args.random_split_only)
+        focused = run_experiments.parse_args(
+            ["plan", "--root", "out", "--random-split-only"]
+        )
+        self.assertTrue(focused.random_split_only)
         override = run_experiments.parse_args(
             ["plan", "--root", "out", "--pair-csv", "alternate_pair.csv"]
         )

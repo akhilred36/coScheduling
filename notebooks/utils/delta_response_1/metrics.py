@@ -11,8 +11,11 @@ from scipy.stats import spearmanr
 
 METRIC_COLUMNS = [
     "log_mae",
+    "log_mse",
     "log_rmse",
     "raw_mae",
+    "raw_mape",
+    "raw_mse",
     "raw_rmse",
     "median_absolute_log_error",
     "median_multiplicative_error",
@@ -48,8 +51,11 @@ def compute_metrics(frame: pd.DataFrame) -> dict[str, float]:
     return {
         "n": len(frame),
         "log_mae": float(np.mean(np.abs(log_error))),
+        "log_mse": float(np.mean(log_error**2)),
         "log_rmse": float(np.sqrt(np.mean(log_error**2))),
         "raw_mae": float(np.mean(np.abs(raw_error))),
+        "raw_mape": float(100.0 * np.mean(np.abs(raw_error) / true)),
+        "raw_mse": float(np.mean(raw_error**2)),
         "raw_rmse": float(np.sqrt(np.mean(raw_error**2))),
         "median_absolute_log_error": float(np.median(np.abs(log_error))),
         "median_multiplicative_error": float(np.median(np.exp(np.abs(log_error)))),

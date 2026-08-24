@@ -338,7 +338,7 @@ Unweighted residual spread is labeled as uncalibrated and is not presented as
 target-specific uncertainty or a prediction interval. This pipeline does not
 produce calibrated prediction intervals.
 
-Evaluation metrics include log-space MAE/RMSE, raw-space MAE/RMSE, median
+Evaluation metrics include log-space MAE/MSE/RMSE, raw-space MAE/MAPE/MSE/RMSE, median
 absolute log error, median multiplicative error, Spearman rank correlation,
 per-victim metrics, and macro-victim averages. Constant or degenerate groups
 store `spearman = 0` with `spearman_defined = false`; the placeholder is not an
@@ -607,6 +607,22 @@ $PY run_experiments.py evaluate --root "$ROOT" --resume
 $PY run_experiments.py status --root "$ROOT"
 ```
 
+For architecture and hyperparameter optimization confined to the full-data
+`random_split` condition, omit the restricted training-size matrix:
+
+```bash
+$PY run_experiments.py plan \
+  --root audit_outputs/experiments/random_split_search \
+  --profile standard \
+  --random-split-only
+$PY run_experiments.py tune \
+  --root audit_outputs/experiments/random_split_search \
+  --resume
+$PY run_experiments.py evaluate \
+  --root audit_outputs/experiments/random_split_search \
+  --resume
+```
+
 All four paths can be overridden during planning with `--jobs-csv`,
 `--inhibitors-csv`, `--job-inh-csv`, and `--pair-csv`. Planning hashes every
 input and writes immutable task specifications plus `subset_membership.csv`.
@@ -642,7 +658,7 @@ configuration, and dependency-selection fingerprints still match.
 ### Accuracy Comparisons
 
 The primary paper metric is non-self directional log MAE. Consolidation also
-retains log RMSE, raw MAE/RMSE, median multiplicative error, Spearman, per-victim
+retains log MSE/RMSE, raw MAE/MAPE/MSE/RMSE, median multiplicative error, Spearman, per-victim
 metrics, paired cluster bootstrap results, and complete predictions.
 
 Two eval-method views are produced:

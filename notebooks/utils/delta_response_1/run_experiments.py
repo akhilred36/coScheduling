@@ -37,8 +37,11 @@ SCHEMA_VERSION = 2
 MODEL_KINDS = ["low_rank", "generic", "absolute"]
 METRICS = [
     "log_mae",
+    "log_mse",
     "log_rmse",
     "raw_mae",
+    "raw_mape",
+    "raw_mse",
     "raw_rmse",
     "median_absolute_log_error",
     "median_multiplicative_error",
@@ -256,6 +259,7 @@ def build_plan(
     inhibitors_csv: Path,
     job_inh_csv: Path,
     pair_csv: Path,
+    random_split_only: bool = False,
 ) -> list[dict[str, Any]]:
     profile = PROFILES[profile_name]
     paths = {
@@ -337,6 +341,9 @@ def build_plan(
         )
     )
 
+    if random_split_only:
+        return tasks
+
     membership_rows: list[dict[str, Any]] = []
     orders = nested_orders(
         jobs,
@@ -400,6 +407,7 @@ def plan_command(args: argparse.Namespace) -> None:
         args.inhibitors_csv,
         args.job_inh_csv,
         args.pair_csv,
+        args.random_split_only,
     )
     write_json(
         root / "experiment_spec.json",
@@ -409,6 +417,7 @@ def plan_command(args: argparse.Namespace) -> None:
             "profile": args.profile,
             "profile_settings": asdict(PROFILES[args.profile]),
             "task_count": len(tasks),
+            "random_split_only": args.random_split_only,
             "tuning_task_count": sum(task["stage"] in TUNING_STAGES for task in tasks),
             "evaluation_task_count": sum(
                 task["stage"] in EVALUATION_STAGES for task in tasks
@@ -1242,6 +1251,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=Path,
         default=DEFAULT_DATA / "pair.csv",
         help="App-App evaluation data",
+    )
+    plan.add_argument(
+        "--random-split-only",
+        action="store_true",
+        help="plan only global hyperparameter tuning and one random_split evaluation",
     )
     plan.set_defaults(function=plan_command)
 
