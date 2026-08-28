@@ -29,7 +29,7 @@ char* outputFile = nullptr;
 double maxRuntimeSec = 0.0;
 bool runtimeLimitActive = false;
 unsigned long actualIters = 0;  // counts actual completed iterations
-std::chrono::high_resolution_clock::time_point
+std::chrono::steady_clock::time_point
     g_startTime;  // used both for limit and final measurement
 // -------------------------------------
 
@@ -86,6 +86,8 @@ void generateDeterministicTargets()
 
 void inhib()
 {
+  MPI_Barrier(MPI_COMM_WORLD);
+
   for (unsigned long i = 0; iters == ULONG_MAX || i < iters; i++)
   {
     // --- Build send targets for this iteration ---
@@ -189,12 +191,18 @@ void inhib()
     // Increment iteration counter *after* the iteration completes
     ++actualIters;
 
-    // Runtime limit check (if active)
+    // Runtime limit check (if active) - collective stop decision
     if (runtimeLimitActive)
     {
-      auto now = std::chrono::high_resolution_clock::now();
+      auto now = std::chrono::steady_clock::now();
       std::chrono::duration<double> elapsed = now - g_startTime;
-      if (elapsed.count() >= maxRuntimeSec)
+      
+      int localStop = (elapsed.count() >= maxRuntimeSec) ? 1 : 0;
+      
+      int globalStop = 0;
+      MPI_Allreduce(&localStop, &globalStop, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+      
+      if (globalStop)
       {
         break;  // exit the loop cleanly
       }
@@ -330,12 +338,12 @@ int main(int argc, char** argv)
   recvReqs = new MPI_Request[numProcs];
 
   // Start the clock (used for runtime limit and final timing)
-  g_startTime = std::chrono::high_resolution_clock::now();
+  g_startTime = std::chrono::steady_clock::now();
   actualIters = 0;  // reset counter
 
   inhib();
 
-  auto endTime = std::chrono::high_resolution_clock::now();
+  auto endTime = std::chrono::steady_clock::now();
 
   delete[] sendBuffer;
   delete[] recvBuffer;
