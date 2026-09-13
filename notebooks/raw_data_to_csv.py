@@ -6,16 +6,16 @@ from itertools import combinations
 from utils.parse_coscheduling_runs import CoSchedulingRunsParser
 
 parser = CoSchedulingRunsParser()
-data_isolated = parser.parse_isolated("../run_data/experiments_coscheduling_isolated/20260527_083005/data", progress=True)
+data_isolated = parser.parse_isolated("/tmp/run_data/run_data/experiments_coscheduling_isolated/20260527_083005/data", progress=True)
 print("Finished parsing isolated")
-data_coscheduled = parser.parse_coscheduled("../run_data/experiments_coscheduling_app_coscheduled/20260527_082956/data", progress=True)
+data_coscheduled = parser.parse_coscheduled("/tmp/run_data/run_data/experiments_coscheduling_app_coscheduled/20260527_082956/data", progress=True)
 print("Finished parsing app coscheduled")
-data_inhib_isolated = parser.parse_inhibitor_isolated("../run_data/experiments_coscheduling_inhib_isolated/20260827_191641/data", progress=True)
+data_inhib_isolated = parser.parse_inhibitor_isolated("/tmp/run_data/run_data/experiments_coscheduling_inhib_isolated/20260827_191641/data", progress=True)
 print("Finished parsing inhib isolated")
-data_inhib_coscheduled = parser.parse_inhibitor_coscheduled_allProfiles("../run_data/experiments_coscheduling_inhib_coscheduled/20260827_191902/data", progress=True)
+data_inhib_coscheduled = parser.parse_inhibitor_coscheduled_allProfiles("/tmp/run_data/run_data/experiments_coscheduling_inhib_coscheduled/20260827_191902/data", progress=True)
 print("Finished parsing inhib coscheduled")
 
-# Aggregate data_inhib_isolated by Num Nodes, Inhib Message Size, Inhib Wait Time, Inhib Comm Sparsity 
+# Aggregate data_inhib_isolated by Num Nodes, Inhib Message Size, Inhib Wait Time, Inhib Comm Sparsity
 # Group by Num Nodes, Inhib Message Size, Inhib Wait Time, Inhib Comm Sparsity, then calculate mean, median, std for each metric across Run Iterations
 data_inhib_isolated_agg = data_inhib_isolated.groupby(['Num Nodes', 'Inhib Message Size', 'Inhib Wait Time (us)', 'Inhib Comm Sparsity']).agg({
     'Inhib App Time Average': ['mean', 'median', 'std'],
@@ -34,20 +34,21 @@ data_inhib_isolated_agg.columns = ['Num Nodes', 'Inhib Message Size', 'Inhib Wai
 
 data_inhib_isolated_agg
 
-
 # Aggregate data_isolated by App and Num Nodes
 # Group by App and Num Nodes, then calculate mean, median, std for each metric across Run Iterations
 data_isolated_agg = data_isolated.groupby(['App', 'Num Nodes']).agg({
     'App Time Average': ['mean', 'median', 'std'],
     'MPI Time Average': ['mean', 'median', 'std'],
-    'Total Messages Sent': ['mean', 'median', 'std']
+    'Total Messages Sent': ['mean', 'median', 'std'],
+    'Total Bytes Sent': ['mean', 'median', 'std']
 }).reset_index()
 
 # Flatten column names
-data_isolated_agg.columns = ['App', 'Num Nodes', 
+data_isolated_agg.columns = ['App', 'Num Nodes',
                              'App Time Average Mean', 'App Time Average Median', 'App Time Average Std',
                              'MPI Time Average Mean', 'MPI Time Average Median', 'MPI Time Average Std',
-                             'Total Messages Sent Mean', 'Total Messages Sent Median', 'Total Messages Sent Std']
+                             'Total Messages Sent Mean', 'Total Messages Sent Median', 'Total Messages Sent Std',
+                             'Total Bytes Sent Mean', 'Total Bytes Sent Median', 'Total Bytes Sent Std']
 
 data_isolated_agg
 
@@ -59,7 +60,9 @@ data_coscheduled_agg = data_coscheduled.groupby(['App A', 'App B', 'Num Nodes'])
     'App A MPI Time Average': ['mean', 'median', 'std'],
     'App B MPI Time Average': ['mean', 'median', 'std'],
     'App A Total Messages Sent': ['mean', 'median', 'std'],
-    'App B Total Messages Sent': ['mean', 'median', 'std']
+    'App B Total Messages Sent': ['mean', 'median', 'std'],
+    'App A Total Bytes Sent': ['mean', 'median', 'std'],
+    'App B Total Bytes Sent': ['mean', 'median', 'std']
 }).reset_index()
 
 # Flatten column names
@@ -69,7 +72,10 @@ data_coscheduled_agg.columns = ['App A', 'App B', 'Num Nodes',
                                 'App A MPI Time Average Mean', 'App A MPI Time Average Median', 'App A MPI Time Average Std',
                                 'App B MPI Time Average Mean', 'App B MPI Time Average Median', 'App B MPI Time Average Std',
                                 'App A Total Messages Sent Mean', 'App A Total Messages Sent Median', 'App A Total Messages Sent Std',
-                                'App B Total Messages Sent Mean', 'App B Total Messages Sent Median', 'App B Total Messages Sent Std']
+                                'App B Total Messages Sent Mean', 'App B Total Messages Sent Median', 'App B Total Messages Sent Std',
+
+                                'App A Total Bytes Sent Mean', 'App A Total Bytes Sent Median', 'App A Total Bytes Sent Std',
+                                'App B Total Bytes Sent Mean', 'App B Total Bytes Sent Median', 'App B Total Bytes Sent Std']
 
 data_coscheduled_agg
 
@@ -79,9 +85,11 @@ data_inhib_coscheduled_agg = data_inhib_coscheduled.groupby(['App', 'Num Nodes',
     'App Time Average': ['mean', 'median', 'std'],
     'MPI Time Average': ['mean', 'median', 'std'],
     'Total Messages Sent': ['mean', 'median', 'std'],
+    'Total Bytes Sent': ['mean', 'median', 'std'],
     'Inhib App Time Average': ['mean', 'median', 'std'],
     'Inhib MPI Time Average': ['mean', 'median', 'std'],
-    'Inhib Total Messages Sent': ['mean', 'median', 'std']
+    'Inhib Total Messages Sent': ['mean', 'median', 'std'],
+    'Inhib Total Bytes Sent': ['mean', 'median', 'std']
 }).reset_index()
 
 # Flatten column names
@@ -89,9 +97,11 @@ data_inhib_coscheduled_agg.columns = ['App', 'Num Nodes', 'Inhib Message Size', 
                              'App Time Average Mean', 'App Time Average Median', 'App Time Average Std',
                              'MPI Time Average Mean', 'MPI Time Average Median', 'MPI Time Average Std',
                              'Total Messages Sent Mean', 'Total Messages Sent Median', 'Total Messages Sent Std',
+                             'Total Bytes Sent Mean', 'Total Bytes Sent Median', 'Total Bytes Sent Std',
                              'Inhib App Time Average Mean', 'Inhib App Time Average Median', 'Inhib App Time Average Std',
                              'Inhib MPI Time Average Mean', 'Inhib MPI Time Average Median', 'Inhib MPI Time Average Std',
-                             'Inhib Total Messages Sent Mean', 'Inhib Total Messages Sent Median', 'Inhib Total Messages Sent Std']
+                             'Inhib Total Messages Sent Mean', 'Inhib Total Messages Sent Median', 'Inhib Total Messages Sent Std',
+                             'Inhib Total Bytes Sent Mean', 'Inhib Total Bytes Sent Median', 'Inhib Total Bytes Sent Std']
 
 data_inhib_coscheduled_agg
 
