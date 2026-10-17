@@ -12,6 +12,8 @@ The implementation provides:
 - Generic-potential and absolute-response neural comparators.
 - Censored training for slowdown measurements clipped at `1`.
 - Leakage-safe crossed application/inhibitor-block validation.
+- Application-targeted selection of at most ten inhibitor profiles for a shared
+  training and inference anchor panel.
 - Uniform, median, physical-profile kernel, and OOD-gated anchor aggregation.
 - Independent model-specific configuration and epoch selection.
 - Deterministic grouped one-standard-error aggregation selection.
@@ -182,6 +184,152 @@ coordinates. They use a separate base-feature scaler fitted once to inhibitor
 profiles, giving every validation and inference distance a common physical
 coordinate system.
 
+## Application-Targeted Inhibitor Selection (At Most 10)
+
+`select_inhibitors.py` constructs a small **global panel**, shared across victims,
+to represent the isolated communication profiles of the real applications.
+This addresses synthetic-profile overrepresentation without selecting profiles
+according to their observed slowdown. The selector does not open App-App data.
+
+### Summary
+
+The full synthetic inhibitor collection contains many strong-interference
+profiles, while real application aggressors often cause little or no slowdown.
+Using the whole collection can therefore overrepresent communication patterns
+that are uncommon among the real applications. The new mechanism selects up to
+ten measured inhibitor profiles whose communication characteristics best cover
+the real application population.
+
+Selection follows this flow:
+
+```text
+Isolated app/inhibitor profiles + valid App-Inhibitor response availability
+  -> shared communication fraction, rates, and mean-message-size features
+  -> application-only standardization
+  -> nearest-inhibitor coverage optimization with a maximum of 10 profiles
+  -> filtered training/anchor CSVs + coverage and availability diagnostics
+```
+
+The panel is selected once and shared across victims. On the repository inputs,
+nine profiles retain the same nearest-profile coverage as all 240 eligible
+inhibitors; adding a tenth does not improve this objective. Slowdown magnitude
+does not drive selection, and floor observations remain in the exported data.
+
+Run the selector as a preprocessing step, then explicitly pass its exported
+CSVs to `pipeline.py`. This reduces the inhibitor set used for model fitting and
+the measured response anchors available at inference. The panel-selection
+distance is defined separately from the model scaler and kernel/OOD distances.
+The `inference_anchor_counts` setting controls a later per-victim uncensored
+anchor budget; it does not construct this application-targeted global panel.
+
+### Methodology
+
+1. Validate the existing App-Inhibitor inputs using `data.py`. Require each
+   candidate inhibitor to have at least one valid response for every target
+   application. Preserve response replicates and slowdown-1 observations.
+2. Describe applications and inhibitors with four shared quantities:
+   `comm_frac`, `log1p(total_msgs / runtime)`,
+   `log1p(total_bytes / runtime)`, and
+   `log1p(total_bytes / total_msgs)`, where
+   `runtime = mpi_time / comm_frac`. Rates over total runtime capture average
+   offered load; message size distinguishes message-heavy and bandwidth-heavy
+   communication. Using rates avoids dependence on measurement duration.
+   The estimated runtime assumes the profile measurements share compatible
+   aggregation conventions and process counts. MPI-active timing does not
+   distinguish network transmission from waiting or synchronization.
+3. Standardize using **target-application statistics only**, giving each
+   application equal weight. A dense synthetic parameter grid must not define
+   what counts as a representative distance. Drop features with target standard
+   deviation at most `1e-8`; fail explicitly if all features are constant or if
+   runtime is undefined. The four features are correlated, so their equal
+   weighting is a transparent physical metric, not independent information.
+4. Let `d(a,j)` be RMS standardized feature distance. For panel `S`, minimize
+   `0.5 * mean_a(min_j d(a,j)^2) + 0.5 * max_a(min_j d(a,j)^2)` subject to
+   `1 <= |S| <= 10`. The mean represents the application population; the maximum
+   keeps uncommon communication regions in the objective. `--tail-weight`
+   changes the maximum-term weight.
+5. If the union of each application's nearest eligible inhibitor fits the
+   budget, use that union. It attains every application's pointwise minimum
+   distance and is therefore globally optimal for this objective. For smaller
+   budgets or larger application populations, use deterministic greedy additions
+   followed by improving one-for-one swaps. That branch is explicitly reported
+   as a heuristic local optimum. Remove redundant anchors rather than fill a
+   quota; sorted IDs break ties deterministically.
+6. Report per-application nearest distances, regret relative to the entire
+   eligible pool, transformed feature ranges, a same-size random-panel baseline,
+   and uncensored-anchor availability. These diagnose coverage and calibration
+   support; they are not evidence of improved slowdown prediction.
+
+By default, selection uses all isolated application profiles. This is a
+transductive panel design. For a panel designed using only a training population,
+pass `--target-apps amg,beatnik,...` and freeze that panel before evaluating other
+applications. Response availability for those other applications is not
+guaranteed by a restricted selection.
+
+### Run With The Research Environment
+
+From the repository root:
+
+```bash
+/nfs/student/a/aalasandagutti/hpcResearch/python_virtual_envs/pytorch-gpu/bin/python \
+  notebooks/utils/delta_response_1/select_inhibitors.py \
+  --max-profiles 10
+```
+
+The default output directory is
+`notebooks/utils/delta_response_1/outputs/selected_inhibitors/`. It contains:
+
+- `inhibitors.csv`, `jobs.csv`, `job_inh.csv`: pipeline-ready inputs, with **both
+  training and inference** restricted to the chosen inhibitor IDs. The jobs file
+  retains all original application profiles; the response file retains all valid
+  measurements for the chosen IDs.
+- `application_coverage.csv`: selected and best-available neighbors/distances.
+- `feature_ranges.csv`: target, candidate, and selected feature ranges.
+- `anchor_availability.csv`: valid and uncensored counts per target victim.
+- `candidate_distances.csv`: complete target-to-eligible-inhibitor distance table.
+- `selection_report.json`: IDs, objective, optimizer status, scaler, input hashes,
+  exclusions, baseline, and availability diagnostics.
+
+Use `--output-dir` for separate panel designs, `--max-profiles 1..10` for another
+budget, and the usual `--jobs-csv`, `--inhibitors-csv`, `--job-inh-csv` overrides.
+
+For a holdout-free fit using the reduced panel, from this directory:
+
+```bash
+/nfs/student/a/aalasandagutti/hpcResearch/python_virtual_envs/pytorch-gpu/bin/python \
+  pipeline.py \
+  --jobs-csv outputs/selected_inhibitors/jobs.csv \
+  --inhibitors-csv outputs/selected_inhibitors/inhibitors.csv \
+  --job-inh-csv outputs/selected_inhibitors/job_inh.csv \
+  --output-dir outputs/reduced_panel_fit \
+  --skip-holdout
+```
+
+The current pipeline requires uncensored support for delta calibration. Inspect
+`anchor_availability.csv` before fitting: having one uncensored inhibitor means
+at least one crossed-validation block cannot supply an uncensored support anchor.
+This is a limitation of the existing calibration protocol, not a reason to
+silently discard low-interference profiles from the selected panel.
+
+### Result On The Repository Inputs
+
+The initial run found 266 inhibitor profiles, of which 240 had valid responses
+for all ten target applications. Nine profiles preserve every application's
+nearest eligible match exactly (zero coverage regret). The mean standardized
+RMS distance is `0.471`, compared with `0.939` for the median of 200 random
+nine-profile panels. The worst distance is `1.481`, for `quicksilver`; its gap
+cannot be fixed by selecting more profiles from the eligible pool. The eligible
+inhibitors' minimum message rate also exceeds the low end of the real-app range.
+These gaps suggest where new synthetic profiles would be valuable.
+
+The reduced panel retains floor observations, but current inference calibrates
+only from anchors with slowdown above 1. In this panel `fiesta` has only one such
+inhibitor. Consequently, profile selection alone does not establish that the
+overestimation problem is solved. A subsequent comparison should retrain on the
+filtered inputs and compare signed log error, floor-case error, and ordinary
+accuracy against the constant-1 baseline using the established evaluation
+protocol. Inhibitor-only validation cannot establish real App-App transfer.
+
 ## Models
 
 ### Low-Rank Response Potential
@@ -350,6 +498,10 @@ pipeline reports marginal method intervals and paired method-minus-comparison
 confidence intervals.
 
 ## Pipeline Flow
+
+To use the reduced inhibitor panel, first run `select_inhibitors.py` and supply
+its filtered input files as described in
+[Application-Targeted Inhibitor Selection](#application-targeted-inhibitor-selection-at-most-10).
 
 An invocation runs these stages in order:
 

@@ -1,0 +1,29 @@
+{
+  "holdout_policy": "Open the real pair.csv exactly once, only through one full default pipeline run after all tests and synthetic reproducibility runs complete. Do not rerun or tune after observing it.",
+  "primary_run": {
+    "configuration": "RunConfig defaults from pipeline.py",
+    "feature_set": "base",
+    "architecture": "shared 4-8-4 encoder, rank-2 low-rank potential",
+    "cv_seeds": [0, 1, 2, 3, 4],
+    "final_seeds": [0, 1, 2, 3, 4],
+    "inhibitor_blocks": 4,
+    "max_epochs": 80,
+    "patience": 10,
+    "batches_per_epoch": 4,
+    "batch_size": 128,
+    "bootstrap_samples": 1000,
+    "primary_method_rule": "Lowest mean crossed App-Inhibitor validation log-MAE among uniform, median, tuned kernel, and tuned OOD kernel",
+    "post_holdout_policy": "All analyses after opening pair.csv are descriptive only; no configuration, model, seed, feature, temperature, OOD rule, or epoch changes."
+  },
+  "synthetic_reproducibility_run": {
+    "data": "Deterministically generated synthetic CSVs under audit_outputs only",
+    "cv_seeds": [17],
+    "final_seeds": [17],
+    "inhibitor_blocks": 2,
+    "max_epochs": 3,
+    "patience": 2,
+    "batches_per_epoch": 1,
+    "bootstrap_samples": 20,
+    "repetitions": 2
+  }
+}

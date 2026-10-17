@@ -1,0 +1,81 @@
+{
+  "kind": "evaluation",
+  "output_dir": "/nfs/MLClass/aalasandagutti/coScheduling/notebooks/utils/delta_response_filteredInhibs_biDirectional/data/evaluation",
+  "row_counts": {
+    "app_app_source_rows": 76,
+    "app_app_rows_after_node_filter": 55,
+    "prepared_pairs": 55,
+    "rejected_pairs": 0,
+    "self_pairs": 10
+  },
+  "source_sha256": {
+    "app_app_csv": "bb9296b3549bffa506234218decd804a9214947b3965d169609145aa311c6e4a",
+    "prepared_jobs_csv": "1192024fa2638f614a7a2f43a53c07c289fe34931770b7d8dcfc8ad176b9c0e3"
+  },
+  "details": {
+    "schema_version": 1,
+    "num_nodes": 8,
+    "observation_unit": "aggregate_configuration",
+    "rate_estimator": "ratio_of_aggregate_means",
+    "use": "final evaluation only; never used for fitting, selection, or context construction",
+    "rejection_reasons": {},
+    "auxiliary_availability": [
+      {
+        "endpoint": "A",
+        "task": "bw_wall",
+        "observations": 55,
+        "valid": 55,
+        "masked": 0,
+        "negative_increased_rate": 25
+      },
+      {
+        "endpoint": "A",
+        "task": "bw_mpi",
+        "observations": 55,
+        "valid": 55,
+        "masked": 0,
+        "negative_increased_rate": 13
+      },
+      {
+        "endpoint": "A",
+        "task": "msg_wall",
+        "observations": 55,
+        "valid": 55,
+        "masked": 0,
+        "negative_increased_rate": 25
+      },
+      {
+        "endpoint": "B",
+        "task": "bw_wall",
+        "observations": 55,
+        "valid": 45,
+        "masked": 10,
+        "negative_increased_rate": 14
+      },
+      {
+        "endpoint": "B",
+        "task": "bw_mpi",
+        "observations": 55,
+        "valid": 45,
+        "masked": 10,
+        "negative_increased_rate": 9
+      },
+      {
+        "endpoint": "B",
+        "task": "msg_wall",
+        "observations": 55,
+        "valid": 55,
+        "masked": 0,
+        "negative_increased_rate": 19
+      }
+    ],
+    "units": {
+      "runtime": "seconds (aggregate mean of per-run averages)",
+      "mpi_time": "seconds (aggregate mean of per-run averages)",
+      "total_msgs": "messages",
+      "total_bytes": "bytes",
+      "slowdown": "dimensionless, max(1, co MPI time / isolated MPI time)",
+      "log_degradation": "natural log ratio, log(rate_iso) - log(rate_co)"
+    }
+  }
+}
