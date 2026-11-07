@@ -13,7 +13,7 @@ Design
   order and node effects are balanced and both sockets share a submission window.
 * The allocation and step shape are identical to generate_isolated_scripts_multinode.py
   (896 tasks / 112 per node / 240G; steps of 448 tasks / 56 per node / 119G, block:block).
-* Pinning: mpibind is turned off for the measured steps (--mpibind=off --cpu-bind=none). Each
+* Pinning: mpibind is turned off for the measured steps (--whole --mpibind=off --cpu-bind=none). Each
   rank goes through bin/pin_to_socket.sh, which reads the topology from sysfs, picks the
   SLURM_LOCALID-th physical core of the requested socket (one PU per core, SMT sibling number
   SMT_INDEX), and execs `numactl --physcpubind=<pu> --localalloc` (falling back to taskset if
@@ -97,7 +97,10 @@ STEP_OPTS = (
     f"-n {STEP_TASKS} --nodes {num_nodes} --ntasks-per-node {num_cpus} --mem {STEP_MEM} "
     "--distribution=block:block"
 )
-PINNED_OPTS = f"{STEP_OPTS} --mpibind=off --cpu-bind=none"
+# --whole: without it, Dane gives a 56-task/node step only socket 0's cores (pilot job 8518293:
+# numactl rejected PUs 168-223 as outside the step cpuset). --whole hands the step every CPU of the
+# job allocation on each node; the wrapper then picks the socket. Used for both sockets.
+PINNED_OPTS = f"{STEP_OPTS} --whole --mpibind=off --cpu-bind=none"
 MPIBIND_REF_OPTS = f"{STEP_OPTS} --mpibind=on,v"
 
 # =============================================================================
@@ -189,7 +192,7 @@ awk -v sock="$sock" -v want="$want" -v per_node="$per_node" '
         numa[kv["numa"]] = 1; pol[kv["policy"]] = 1; omp[kv["omp"]] = 1
     }
     END {
-        if (n != want) { bad++; print "rank count " n " != " want }
+        if (n + 0 != want) { bad++; print "rank count " n + 0 " != " want }
         nh = 0; for (h in host) { nh++; if (host[h] != per_node) { bad++; print "node " h " has " host[h] " ranks" } }
         ns = ""; for (k in numa) ns = ns k " "
         ps = ""; for (k in pol) ps = ps k " "
@@ -249,6 +252,7 @@ def slurm_script(job_name, walltime, job_log_dir, bin_dir, steps):
         "",
         "# Environment and topology record",
         "{ date -Is; echo \"job=$SLURM_JOB_ID nodes=$SLURM_JOB_NODELIST\"; scontrol show hostnames \"$SLURM_JOB_NODELIST\";",
+        "  srun --version; grep Cpus_allowed_list /proc/self/status;",
         "  module list 2>&1; lscpu; numactl --hardware 2>&1 || echo 'numactl not found'; } > \"$JOBLOG/env.txt\" 2>&1",
         "",
         "# Reference: where June's launcher (mpibind) would put these ranks. Not a measurement.",
@@ -264,7 +268,7 @@ def slurm_script(job_name, walltime, job_log_dir, bin_dir, steps):
         "        touch \"$dir/PLACEMENT_FAILED\"; status=1; return",
         "    fi",
         "    echo \"socket=$sock start=$(date +%s.%N) dir=$dir\" >> \"$JOBLOG/steps.txt\"",
-        f"    time srun {PINNED_OPTS} env MPIP=\"-f $dir/mpip_profiles\" OMP_NUM_THREADS=1 PIN_LD_PRELOAD=\"{mpip_path}\" \\",
+        f"    time srun {PINNED_OPTS} env MPIP=\"-f $dir/mpip_profiles\" OMP_NUM_THREADS=1 OMP_PLACES=threads PIN_LD_PRELOAD=\"{mpip_path}\" \\",
         "        \"$PIN\" \"$sock\" \"$SMT\" run \"$@\" > \"$dir/output.log\" 2>&1 || status=1",
         "    echo \"socket=$sock end=$(date +%s.%N) rc=$status dir=$dir\" >> \"$JOBLOG/steps.txt\"",
         "}",
