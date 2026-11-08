@@ -101,6 +101,10 @@ STEP_OPTS = (
 # numactl rejected PUs 168-223 as outside the step cpuset). --whole hands the step every CPU of the
 # job allocation on each node; the wrapper then picks the socket. Used for both sockets.
 PINNED_OPTS = f"{STEP_OPTS} --whole --mpibind=off --cpu-bind=none"
+# srun ignores --whole when -c is set, and `#SBATCH --cpus-per-task 1` exports it to every step
+# (SLURM_CPUS_PER_TASK, plus SLURM_TRES_PER_TASK on Slurm 25.11; pilot job 2: "Ignoring --whole
+# since -c/--cpus-per-task used"). Drop them for the pinned steps only; 1 CPU/task is the default.
+PINNED_SRUN = "env -u SLURM_CPUS_PER_TASK -u SLURM_TRES_PER_TASK srun"
 MPIBIND_REF_OPTS = f"{STEP_OPTS} --mpibind=on,v"
 
 # =============================================================================
@@ -278,13 +282,13 @@ def slurm_script(job_name, walltime, job_log_dir, bin_dir, steps):
         "",
         "run_on_socket() {  # <socket> <run_dir> <cmd...>",
         "    local sock=$1 dir=$2; shift 2",
-        f"    srun {PINNED_OPTS} \"$PIN\" \"$sock\" \"$SMT\" probe > \"$dir/placement_probe.log\" 2>&1",
+        f"    {PINNED_SRUN} {PINNED_OPTS} \"$PIN\" \"$sock\" \"$SMT\" probe > \"$dir/placement_probe.log\" 2>&1",
         f"    if ! \"$CHECK\" \"$dir/placement_probe.log\" \"$sock\" {STEP_TASKS} {num_cpus} > \"$dir/placement_check.txt\" 2>&1; then",
         "        echo \"placement check FAILED for socket $sock ($dir); skipping step\" >&2",
         "        touch \"$dir/PLACEMENT_FAILED\"; status=1; return",
         "    fi",
         "    echo \"socket=$sock start=$(date +%s.%N) dir=$dir\" >> \"$JOBLOG/steps.txt\"",
-        f"    time srun {PINNED_OPTS} env MPIP=\"-f $dir/mpip_profiles\" OMP_NUM_THREADS=1 OMP_PLACES=threads PIN_LD_PRELOAD=\"{mpip_path}\" \\",
+        f"    time {PINNED_SRUN} {PINNED_OPTS} env MPIP=\"-f $dir/mpip_profiles\" OMP_NUM_THREADS=1 OMP_PLACES=threads PIN_LD_PRELOAD=\"{mpip_path}\" \\",
         "        \"$PIN\" \"$sock\" \"$SMT\" run \"$@\" > \"$dir/output.log\" 2>&1 || status=1",
         "    echo \"socket=$sock end=$(date +%s.%N) rc=$status dir=$dir\" >> \"$JOBLOG/steps.txt\"",
         "}",
