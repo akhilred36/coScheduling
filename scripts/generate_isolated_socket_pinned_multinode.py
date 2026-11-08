@@ -111,7 +111,8 @@ PIN_TO_SOCKET_SH = r"""#!/bin/bash
 #   pin_to_socket.sh <socket> <smt_index> probe
 #   pin_to_socket.sh <socket> <smt_index> run <cmd> [args...]
 # Core choice: the SLURM_LOCALID-th core (ascending PU number) of <socket>, using that core's
-# <smt_index>-th hardware thread. Topology comes from sysfs, so it doesn't depend on Slurm's CPU
+# <smt_index>-th hardware thread if the step cpuset allows it, else its first allowed sibling
+# (logged as thread=). Topology comes from sysfs, so it doesn't depend on Slurm's CPU
 # numbering. If PIN_LD_PRELOAD is set, it applies only to the final command (not to bash or
 # numactl).
 set -euo pipefail
@@ -127,7 +128,16 @@ expand_list() {  # "56,168" / "56-57" / "1-3,8" -> one PU per line
     done
 }
 
-pus=()
+# PUs this task may use (the Slurm step cpuset). On Dane, an `srun --whole` step gets only
+# SMT thread 0 of each core (0-111), while a default step got both threads of socket 0.
+declare -A allowed=()
+read -r _ cpus_allowed < <(grep '^Cpus_allowed_list' /proc/self/status)
+while read -r c; do allowed[$c]=1; done < <(expand_list "$cpus_allowed")
+
+# One entry per physical core on <socket>: "<first sibling> <chosen PU> <thread index>".
+# The preferred thread is <smt_index>; if the cpuset doesn't contain it, take the core's first
+# allowed sibling. Cores with no allowed sibling are skipped.
+entries=()
 for d in /sys/devices/system/cpu/cpu[0-9]*; do
     [[ -r $d/topology/physical_package_id ]] || continue
     cpu=${d##*/cpu}
@@ -135,13 +145,19 @@ for d in /sys/devices/system/cpu/cpu[0-9]*; do
     [[ $pkg == "$sock" ]] || continue
     read -r sibs < "$d/topology/thread_siblings_list"
     mapfile -t sl < <(expand_list "$sibs")
-    (( smt < ${#sl[@]} )) || continue
-    [[ ${sl[$smt]} == "$cpu" ]] && pus+=("$cpu")
+    [[ ${sl[0]} == "$cpu" ]] || continue          # visit each core once
+    choice=""; tidx=-1
+    if (( smt < ${#sl[@]} )) && [[ -n ${allowed[${sl[$smt]}]:-} ]]; then
+        choice=${sl[$smt]}; tidx=$smt
+    else
+        for i in "${!sl[@]}"; do [[ -n ${allowed[${sl[$i]}]:-} ]] && { choice=${sl[$i]}; tidx=$i; break; }; done
+    fi
+    [[ -n $choice ]] && entries+=("${sl[0]} $choice $tidx")
 done
-mapfile -t pus < <(printf '%s\n' "${pus[@]}" | sort -n)
-(( ${#pus[@]} > 0 && ${#pus[0]} > 0 )) || { echo "pin_to_socket: no PUs for socket=$sock smt=$smt on $(hostname -s)" >&2; exit 97; }
-(( lid < ${#pus[@]} )) || { echo "pin_to_socket: localid $lid >= ${#pus[@]} cores on socket $sock" >&2; exit 97; }
-pu=${pus[$lid]}
+mapfile -t entries < <(printf '%s\n' "${entries[@]}" | sort -n -k1,1)
+(( ${#entries[@]} > 0 && ${#entries[0]} > 0 )) || { echo "pin_to_socket: no allowed PUs on socket=$sock (cpuset $cpus_allowed) on $(hostname -s)" >&2; exit 97; }
+(( lid < ${#entries[@]} )) || { echo "pin_to_socket: localid $lid >= ${#entries[@]} usable cores on socket $sock (cpuset $cpus_allowed)" >&2; exit 97; }
+read -r _ pu thread <<<"${entries[$lid]}"
 numa=-1
 for f in /sys/devices/system/cpu/cpu"$pu"/node[0-9]*; do [[ -e $f ]] && numa=${f##*node}; done
 
@@ -150,7 +166,7 @@ if command -v numactl >/dev/null 2>&1; then
 else
     bind=(taskset -c "$pu"); membind=kernel-default-local
 fi
-tag="PLACEMENT rank=${SLURM_PROCID} localid=$lid host=$(hostname -s) socket=$sock smt=$smt pu=$pu numa=$numa membind=$membind"
+tag="PLACEMENT rank=${SLURM_PROCID} localid=$lid host=$(hostname -s) socket=$sock smt=$smt thread=$thread pu=$pu numa=$numa membind=$membind"
 
 case $mode in
 probe)
