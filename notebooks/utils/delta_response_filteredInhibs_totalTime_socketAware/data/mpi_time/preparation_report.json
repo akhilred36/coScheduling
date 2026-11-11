@@ -1,0 +1,28 @@
+{
+  "time_basis": "mpi_time",
+  "slowdown": "max(1, T_MPI_co / T_MPI_iso); raw_time_ratio is the unclipped ratio",
+  "profile_features": "mpi_time, comm_frac = T_MPI / T_app, total_msgs, total_bytes (identical for both bases)",
+  "observation_unit": "aggregate_configuration (mean of per-run averages)",
+  "num_nodes": 8,
+  "row_counts": {
+    "jobs": 10,
+    "inhibitors": 287,
+    "job_inh": 2870,
+    "job_inh_floor": 443,
+    "pairs": 55,
+    "self_pairs": 10,
+    "non_self_directional_floor": 18
+  },
+  "source_paths": {
+    "isolated_apps_csv": "/home/akhil/hpcResearch/repos/coScheduling/processed_data/data_isolated_agg.csv",
+    "isolated_inhibitors_csv": "/home/akhil/hpcResearch/repos/coScheduling/processed_data/data_inhib_isolated_agg.csv",
+    "app_inhibitor_csv": "/home/akhil/hpcResearch/repos/coScheduling/processed_data/data_inhib_coscheduled_agg.csv",
+    "app_app_csv": "/home/akhil/hpcResearch/repos/coScheduling/processed_data/data_coscheduled_agg.csv"
+  },
+  "source_sha256": {
+    "isolated_apps_csv": "ac293c268ac7c71b70fb84b6aeb972cc80084f1565e753abda8809bdfb96165b",
+    "isolated_inhibitors_csv": "9947484371726913da53c6b79629f47ae6742221fc47a5a96cd35e67b1cf6067",
+    "app_inhibitor_csv": "d3710fb3b586ad740d9af9dbc90e877c44831b563a716b9bc115e75b9bb36628",
+    "app_app_csv": "bb9296b3549bffa506234218decd804a9214947b3965d169609145aa311c6e4a"
+  }
+}

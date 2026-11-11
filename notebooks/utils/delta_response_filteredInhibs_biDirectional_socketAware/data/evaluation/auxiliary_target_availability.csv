@@ -1,0 +1,7 @@
+endpoint,task,observations,valid,masked,negative_increased_rate
+A,bw_wall,55,55,0,25
+A,bw_mpi,55,55,0,13
+A,msg_wall,55,55,0,25
+B,bw_wall,55,45,10,14
+B,bw_mpi,55,45,10,9
+B,msg_wall,55,55,0,19

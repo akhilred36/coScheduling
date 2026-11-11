@@ -1,0 +1,147 @@
+{
+  "kind": "training",
+  "output_dir": "/home/akhil/hpcResearch/repos/coScheduling/notebooks/utils/delta_response_filteredInhibs_biDirectional_totalTime/data/training",
+  "row_counts": {
+    "isolated_application_profiles": 10,
+    "isolated_inhibitor_profiles": 287,
+    "app_inhibitor_source_rows": 2870,
+    "app_inhibitor_rows_after_node_filter": 2870,
+    "prepared_observations": 2870,
+    "rejected_observations": 0,
+    "censored_floor_observations": 611
+  },
+  "source_sha256": {
+    "isolated_apps_csv": "ac293c268ac7c71b70fb84b6aeb972cc80084f1565e753abda8809bdfb96165b",
+    "isolated_inhibitors_csv": "9947484371726913da53c6b79629f47ae6742221fc47a5a96cd35e67b1cf6067",
+    "app_inhibitor_csv": "d3710fb3b586ad740d9af9dbc90e877c44831b563a716b9bc115e75b9bb36628"
+  },
+  "details": {
+    "schema_version": 1,
+    "app_app_data_read": false,
+    "num_nodes": 8,
+    "slowdown_time_basis": "total_application_time",
+    "filters": {
+      "Num Nodes": 8
+    },
+    "source_paths": {
+      "isolated_apps_csv": "/home/akhil/hpcResearch/repos/coScheduling/processed_data/data_isolated_agg.csv",
+      "isolated_inhibitors_csv": "/home/akhil/hpcResearch/repos/coScheduling/processed_data/data_inhib_isolated_agg.csv",
+      "app_inhibitor_csv": "/home/akhil/hpcResearch/repos/coScheduling/processed_data/data_inhib_coscheduled_agg.csv"
+    },
+    "observation_unit": "aggregate_configuration",
+    "rate_estimator": "ratio_of_aggregate_means",
+    "replicate_semantics": "one aggregate configuration per (job_id, inhib_id); replicate_id = 0; not run-level replicates",
+    "inhibitor_id_format": "{Num Nodes}_{Inhib Message Size}_{Inhib Wait Time (us)}_{decimal-normalized Inhib Comm Sparsity}",
+    "target_definitions": {
+      "slowdown": "max(1, T_app_co / T_app_iso) for the application endpoint (total application time)",
+      "log_slowdown": "log(slowdown)",
+      "is_censored": "raw_app_time_ratio <= 1 (observation at the slowdown floor)",
+      "raw_app_time_ratio": "unclipped T_app_co / T_app_iso",
+      "raw_mpi_time_ratio": "unclipped T_MPI_co / T_MPI_iso; diagnostic only (not the target)",
+      "auxiliary": {
+        "bw_wall": {
+          "numerator": "total_bytes",
+          "denominator": "runtime",
+          "description": "bytes per total runtime (achieved average traffic rate)",
+          "target": "log(rate_iso) - log(rate_co); positive = degradation; not clipped"
+        },
+        "bw_mpi": {
+          "numerator": "total_bytes",
+          "denominator": "mpi_time",
+          "description": "bytes per MPI time (MPI-time-normalized effective throughput)",
+          "target": "log(rate_iso) - log(rate_co); positive = degradation; not clipped"
+        },
+        "msg_wall": {
+          "numerator": "total_msgs",
+          "denominator": "runtime",
+          "description": "messages per total runtime",
+          "target": "log(rate_iso) - log(rate_co); positive = degradation; not clipped"
+        }
+      },
+      "comm_frac": "T_MPI / T_runtime of the matching aggregate means"
+    },
+    "units": {
+      "runtime": "seconds (aggregate mean of per-run averages)",
+      "mpi_time": "seconds (aggregate mean of per-run averages)",
+      "total_msgs": "messages",
+      "total_bytes": "bytes",
+      "slowdown": "dimensionless, max(1, co application time / isolated application time)",
+      "log_degradation": "natural log ratio, log(rate_iso) - log(rate_co)"
+    },
+    "rejection_reasons": {},
+    "auxiliary_availability": [
+      {
+        "endpoint": "app",
+        "task": "bw_wall",
+        "target_column": "app_bw_wall_log_degradation",
+        "observations": 2870,
+        "valid": 2870,
+        "masked": 0,
+        "negative_increased_rate": 595,
+        "zero_change": 6,
+        "mask_reasons": "{}"
+      },
+      {
+        "endpoint": "app",
+        "task": "bw_mpi",
+        "target_column": "app_bw_mpi_log_degradation",
+        "observations": 2870,
+        "valid": 2870,
+        "masked": 0,
+        "negative_increased_rate": 443,
+        "zero_change": 0,
+        "mask_reasons": "{}"
+      },
+      {
+        "endpoint": "app",
+        "task": "msg_wall",
+        "target_column": "app_msg_wall_log_degradation",
+        "observations": 2870,
+        "valid": 2870,
+        "masked": 0,
+        "negative_increased_rate": 582,
+        "zero_change": 25,
+        "mask_reasons": "{}"
+      },
+      {
+        "endpoint": "inhib",
+        "task": "bw_wall",
+        "target_column": "inhib_bw_wall_log_degradation",
+        "observations": 2870,
+        "valid": 2870,
+        "masked": 0,
+        "negative_increased_rate": 603,
+        "zero_change": 0,
+        "mask_reasons": "{}"
+      },
+      {
+        "endpoint": "inhib",
+        "task": "bw_mpi",
+        "target_column": "inhib_bw_mpi_log_degradation",
+        "observations": 2870,
+        "valid": 2870,
+        "masked": 0,
+        "negative_increased_rate": 560,
+        "zero_change": 0,
+        "mask_reasons": "{}"
+      },
+      {
+        "endpoint": "inhib",
+        "task": "msg_wall",
+        "target_column": "inhib_msg_wall_log_degradation",
+        "observations": 2870,
+        "valid": 2870,
+        "masked": 0,
+        "negative_increased_rate": 580,
+        "zero_change": 1,
+        "mask_reasons": "{}"
+      }
+    ],
+    "legacy_comparison_dir": "/home/akhil/hpcResearch/repos/coScheduling/notebooks/utils/few_shot/data",
+    "source_inconsistency_count": 3476,
+    "source_inconsistent_checks": {
+      "legacy_app_inhibitor_mpi_time_slowdown": 2429,
+      "legacy_inhibitor_profile": 1047
+    }
+  }
+}

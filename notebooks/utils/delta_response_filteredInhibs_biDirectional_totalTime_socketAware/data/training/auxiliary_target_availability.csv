@@ -1,0 +1,7 @@
+endpoint,task,target_column,observations,valid,masked,negative_increased_rate,zero_change,mask_reasons
+app,bw_wall,app_bw_wall_log_degradation,2870,2870,0,595,6,{}
+app,bw_mpi,app_bw_mpi_log_degradation,2870,2870,0,443,0,{}
+app,msg_wall,app_msg_wall_log_degradation,2870,2870,0,582,25,{}
+inhib,bw_wall,inhib_bw_wall_log_degradation,2870,2870,0,603,0,{}
+inhib,bw_mpi,inhib_bw_mpi_log_degradation,2870,2870,0,560,0,{}
+inhib,msg_wall,inhib_msg_wall_log_degradation,2870,2870,0,580,1,{}

@@ -1,0 +1,71 @@
+1. Prepare
+cd ~/hpcResearch/coScheduling
+git pull --ff-only origin dane
+
+conda activate pytorch-gpu
+cd notebooks/utils/delta_response_1
+
+export ROOT="$HOME/hpcResearch/experiment_outputs/delta_response_paper_v1"
+
+export OMP_NUM_THREADS=4
+export MKL_NUM_THREADS=4
+export OPENBLAS_NUM_THREADS=4
+export NUMEXPR_NUM_THREADS=4
+The runner automatically uses the standard jobs.csv, inhibitors.csv, job_inh.csv, and pair.csv.
+2. Create The Plan
+python run_experiments.py plan \
+  --root "$ROOT" \
+  --profile standard
+This creates 74 tasks:
+- 3 global tuning tasks
+- 1 random_split evaluation
+- 70 training-size evaluations
+Check the plan:
+python run_experiments.py status --root "$ROOT"
+3. Run Global Tuning
+python run_experiments.py tune \
+  --root "$ROOT" \
+  --resume \
+  --progress-interval 30
+The tuning stages are dependent and therefore execute sequentially:
+architecture -> optimizer -> capacity
+4. Test Parallel Evaluation
+Start with a bounded batch of 16 tasks:
+python run_experiments.py evaluate \
+  --root "$ROOT" \
+  --max-workers 16 \
+  --max-tasks 16 \
+  --resume \
+  --progress-interval 30
+Monitor resources:
+watch -n 1 nvidia-smi
+If resource usage is comfortable, run all remaining tasks:
+python run_experiments.py evaluate \
+  --root "$ROOT" \
+  --max-workers 16 \
+  --resume \
+  --progress-interval 30
+You can try --max-workers 32 if GPU and CPU utilization remain low.
+GPU Caveat
+The current runner does not assign workers across GPUs. All subprocesses using device: auto will normally select logical cuda:0. Given the approximately 100 MB VRAM usage, 16 or 32 concurrent workers may work well, but the other three V100s will remain mostly unused.
+Do not start four separate runner processes against the same $ROOT; concurrent runners can race over task status files.
+5. Check Completion
+python run_experiments.py status --root "$ROOT"
+All stages should report succeeded.
+6. Rebuild Consolidated Results
+Evaluation consolidates results automatically, but you can explicitly rebuild them:
+python run_experiments.py consolidate \
+  --root "$ROOT" \
+  --include-predictions
+Paper-facing results will be under:
+$ROOT/consolidated/
+Primary files:
+global_selection.json
+architecture_search.csv
+accuracy_by_eval_method.csv
+accuracy_by_training_size.csv
+learning_curve_summary.csv
+metrics_long.csv
+predictions.csv
+pair_eligibility.csv
+If interrupted, rerun the same tune or evaluate command with --resume. Completed tasks will be skipped.
