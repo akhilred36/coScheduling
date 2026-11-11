@@ -1,0 +1,10 @@
+{
+  "verdicts": {
+    "cv: joint cal < baseline": "fails",
+    "cv: bprof cal < baseline": "fails",
+    "sens: joint cal < baseline": "n.s.",
+    "sens: bprof cal < baseline": "n.s."
+  },
+  "a calibrated variant helps": false,
+  "run capacity probe": true
+}

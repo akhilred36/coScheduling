@@ -1,0 +1,130 @@
+{
+  "legacy_delta": {
+    "model_config": {
+      "feature_set": "base",
+      "hidden_dim": 32,
+      "embedding_dim": 16,
+      "rank": 8,
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001,
+      "aux_hidden_dim": 32
+    },
+    "protocol": 7,
+    "fold_avg_argmin": 1,
+    "material": true,
+    "curve_last_minus_min": 0.04205099962375325,
+    "curve_still_falling_at_end": false
+  },
+  "legacy_generic": {
+    "model_config": {
+      "feature_set": "base",
+      "hidden_dim": 16,
+      "embedding_dim": 8,
+      "rank": 4,
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001,
+      "aux_hidden_dim": 16
+    },
+    "protocol": 12,
+    "fold_avg_argmin": 16,
+    "material": false,
+    "curve_last_minus_min": 0.024689901283906107,
+    "curve_still_falling_at_end": false
+  },
+  "legacy_absolute": {
+    "model_config": {
+      "feature_set": "base",
+      "hidden_dim": 32,
+      "embedding_dim": 16,
+      "rank": 8,
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001,
+      "aux_hidden_dim": 32
+    },
+    "protocol": 5,
+    "fold_avg_argmin": 1,
+    "material": true,
+    "curve_last_minus_min": 0.0430726893336508,
+    "curve_still_falling_at_end": false
+  },
+  "joint_profile": {
+    "model_config": {
+      "feature_set": "base",
+      "hidden_dim": 32,
+      "embedding_dim": 16,
+      "rank": 8,
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001,
+      "aux_hidden_dim": 32
+    },
+    "protocol": 3,
+    "fold_avg_argmin": 1,
+    "material": false,
+    "curve_last_minus_min": 0.0961617865941588,
+    "curve_still_falling_at_end": false
+  },
+  "bidirectional_profile": {
+    "model_config": {
+      "feature_set": "base",
+      "hidden_dim": 16,
+      "embedding_dim": 8,
+      "rank": 4,
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001,
+      "aux_hidden_dim": 16
+    },
+    "protocol": 7,
+    "fold_avg_argmin": 4,
+    "material": false,
+    "curve_last_minus_min": 0.01774264011026702,
+    "curve_still_falling_at_end": false
+  },
+  "bidirectional_context": {
+    "model_config": {
+      "feature_set": "base",
+      "hidden_dim": 32,
+      "embedding_dim": 8,
+      "rank": 4,
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001,
+      "aux_hidden_dim": 32
+    },
+    "protocol": 6,
+    "fold_avg_argmin": 1,
+    "material": true,
+    "curve_last_minus_min": 0.01369133156340882,
+    "curve_still_falling_at_end": true
+  },
+  "bidirectional_profile_wall": {
+    "model_config": {
+      "feature_set": "base",
+      "hidden_dim": 32,
+      "embedding_dim": 16,
+      "rank": 8,
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001,
+      "aux_hidden_dim": 32
+    },
+    "protocol": 3,
+    "fold_avg_argmin": 1,
+    "material": false,
+    "curve_last_minus_min": 0.08092552430780789,
+    "curve_still_falling_at_end": false
+  },
+  "bidirectional_context_forward": {
+    "model_config": {
+      "feature_set": "base",
+      "hidden_dim": 16,
+      "embedding_dim": 8,
+      "rank": 4,
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001,
+      "aux_hidden_dim": 16
+    },
+    "protocol": 6,
+    "fold_avg_argmin": 13,
+    "material": false,
+    "curve_last_minus_min": 0.0055599254170239365,
+    "curve_still_falling_at_end": false
+  }
+}

@@ -1,0 +1,8 @@
+E0_bd_mpi rc=0 secs=136
+E1_bd_mpi rc=0 secs=159
+E2_bd_mpi rc=0 secs=138
+E0_bd_tt rc=0 secs=132
+E2_bd_tt rc=0 secs=128
+E1_bd_tt rc=0 secs=151
+E1_1w_tt rc=0 secs=456
+E1_1w_mpi rc=0 secs=462

@@ -1,0 +1,208 @@
+{
+  "selection_mode": "fixed_global",
+  "fixed_selection_source": {
+    "model_selection": {
+      "absolute": {
+        "final_epochs": 6,
+        "selected_config_id": 0,
+        "selection_source": "crossed App-Inhibitor validation only",
+        "validation_log_mae": 0.031826212240663836
+      },
+      "generic": {
+        "final_epochs": 4,
+        "selected_config_id": 0,
+        "selection_source": "crossed App-Inhibitor validation only",
+        "validation_log_mae": 0.02140654577871268
+      },
+      "low_rank": {
+        "final_epochs": 4,
+        "selected_config_id": 2,
+        "selection_source": "crossed App-Inhibitor validation only",
+        "validation_log_mae": 0.020617268445167918
+      }
+    },
+    "selection_scope": "all evaluation application profiles and App-Inhibitor responses; no App-App outcomes",
+    "selection_sha256": "560d26be6ac766b0e9513e993ae2e1a1af046eb77b17f1bcf65cece63e16e174",
+    "task_id": "run_c92db30b7f2e8b51"
+  },
+  "model_configs": {
+    "low_rank": {
+      "feature_set": "base",
+      "hidden_dim": 16,
+      "embedding_dim": 8,
+      "rank": 4,
+      "learning_rate": 0.003,
+      "weight_decay": 0.001
+    },
+    "generic": {
+      "feature_set": "base",
+      "hidden_dim": 8,
+      "embedding_dim": 4,
+      "rank": 2,
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001
+    },
+    "absolute": {
+      "feature_set": "base",
+      "hidden_dim": 8,
+      "embedding_dim": 4,
+      "rank": 2,
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001
+    }
+  },
+  "aggregations": {
+    "generic": {
+      "accuracy_best": {
+        "fallback": "uniform",
+        "grouped_standard_error": 0.003999866515440254,
+        "method": "ood_kernel",
+        "quantile": 0.9,
+        "temperature": 10.0,
+        "validation_group_count": 39,
+        "validation_log_mae": 0.02035875036451031
+      },
+      "kernel": {
+        "grouped_standard_error": 0.003407239066928254,
+        "temperature": 0.1,
+        "validation_group_count": 39,
+        "validation_log_mae": 0.02322426096615843
+      },
+      "median": {
+        "grouped_standard_error": 0.004095493430830283,
+        "validation_group_count": 39,
+        "validation_log_mae": 0.021095107123493502
+      },
+      "model_config_validation_log_mae": 0.02140654577871268,
+      "ood_kernel": {
+        "fallback": "median",
+        "grouped_standard_error": 0.003407593434701749,
+        "quantile": 0.9,
+        "temperature": 0.1,
+        "validation_group_count": 39,
+        "validation_log_mae": 0.02321832046541608
+      },
+      "primary_method": "uniform",
+      "selected_config_id": 0,
+      "selection_rule": {
+        "complexity_order": [
+          "uniform",
+          "median",
+          "kernel",
+          "ood_kernel"
+        ],
+        "grouping": "victim_id and heldout_block after seed averaging",
+        "name": "grouped_one_standard_error",
+        "numerical_best_method": "median",
+        "threshold": 0.025190600554323785
+      },
+      "uniform": {
+        "grouped_standard_error": 0.0043627660413451935,
+        "validation_group_count": 39,
+        "validation_log_mae": 0.02140654590502328
+      }
+    },
+    "low_rank": {
+      "accuracy_best": {
+        "fallback": "uniform",
+        "grouped_standard_error": 0.004467719254138625,
+        "method": "ood_kernel",
+        "quantile": 0.9,
+        "temperature": 10.0,
+        "validation_group_count": 39,
+        "validation_log_mae": 0.020605848186639263
+      },
+      "focused_runner_selection_rule": "minimum_grouped_cv_log_mae",
+      "kernel": {
+        "grouped_standard_error": 0.0039567420091258364,
+        "temperature": 0.1,
+        "validation_group_count": 39,
+        "validation_log_mae": 0.02446578226225742
+      },
+      "median": {
+        "grouped_standard_error": 0.00451334446090055,
+        "validation_group_count": 39,
+        "validation_log_mae": 0.021249409147716027
+      },
+      "model_config_validation_log_mae": 0.020617268445167918,
+      "ood_kernel": {
+        "fallback": "uniform",
+        "grouped_standard_error": 0.003955727606018826,
+        "quantile": 0.9,
+        "temperature": 10.0,
+        "validation_group_count": 39,
+        "validation_log_mae": 0.024436488967356916
+      },
+      "primary_method": "ood_kernel",
+      "selected_config_id": 2,
+      "selection_rule": {
+        "complexity_order": [
+          "uniform",
+          "median",
+          "kernel",
+          "ood_kernel"
+        ],
+        "grouping": "victim_id and heldout_block after seed averaging",
+        "name": "grouped_one_standard_error",
+        "numerical_best_method": "uniform",
+        "threshold": 0.025307888191629276
+      },
+      "uniform": {
+        "grouped_standard_error": 0.004690619866543346,
+        "validation_group_count": 39,
+        "validation_log_mae": 0.02061726832508593
+      }
+    }
+  },
+  "model_selection": {
+    "low_rank": {
+      "selected_config_id": 0,
+      "validation_log_mae": 0.020617268445167918,
+      "final_epochs": 4,
+      "selection_source": "globally frozen App-Inhibitor selection"
+    },
+    "generic": {
+      "selected_config_id": 0,
+      "validation_log_mae": 0.02140654577871268,
+      "final_epochs": 4,
+      "selection_source": "globally frozen App-Inhibitor selection"
+    },
+    "absolute": {
+      "selected_config_id": 0,
+      "validation_log_mae": 0.031826212240663836,
+      "final_epochs": 6,
+      "selection_source": "globally frozen App-Inhibitor selection"
+    }
+  },
+  "final_epochs": {
+    "absolute": 6,
+    "generic": 4,
+    "low_rank": 4
+  },
+  "final_epoch_source": "fixed_global_selection",
+  "crossed_fold_count": 0,
+  "crossed_fold_count_by_model": {},
+  "ood_distance_calibration": {
+    "source": "crossed_validation_query_to_uncensored_support_distances",
+    "coordinate_system": "single base-feature scaler fit to inhibitor profiles only",
+    "scaler": {
+      "feature_set": "base",
+      "epsilon": 1e-12,
+      "mean": [
+        3.0238141717022216,
+        0.14565790665635084,
+        15.697672064099674,
+        27.946834987811723
+      ],
+      "scale": [
+        1.4570789693898225,
+        0.18522892929859708,
+        2.317570532202978,
+        1.6102879849398235
+      ]
+    },
+    "count": 40,
+    "median": 2.468954563140869,
+    "maximum": 3.7599496841430664
+  }
+}

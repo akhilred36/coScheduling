@@ -1,0 +1,119 @@
+{
+  "variants": {
+    "legacy_generic": {
+      "spec": {
+        "name": "legacy_generic",
+        "family": "legacy_potential",
+        "legacy_kind": "generic",
+        "lambda_abs": 1.0,
+        "lambda_delta": 1.0,
+        "lambda_aux": 0.0,
+        "aux_tasks": [],
+        "use_context": false,
+        "token_directions": "forward_plus_reverse",
+        "description": "original generic delta-only potential with anchor aggregation"
+      },
+      "selected_config_id": 0,
+      "model_config": {
+        "feature_set": "base",
+        "hidden_dim": 8,
+        "embedding_dim": 4,
+        "rank": 2,
+        "learning_rate": 0.001,
+        "weight_decay": 0.0001,
+        "aux_hidden_dim": 8
+      },
+      "final_epochs": 47,
+      "final_epoch_source": "median selected best epoch across crossed folds",
+      "early_stopping_validation_log_mae": 0.13248730698741695,
+      "evaluated_fit_count": 200,
+      "evaluated_group_count": 40,
+      "selection_source": "crossed App-Inhibitor validation only",
+      "aggregation": {
+        "uniform": {
+          "validation_log_mae": 0.1324873071054811,
+          "grouped_standard_error": 0.02044716556280533,
+          "validation_group_count": 40
+        },
+        "median": {
+          "validation_log_mae": 0.1382517737795903,
+          "grouped_standard_error": 0.020823919938149294,
+          "validation_group_count": 40
+        },
+        "kernel": {
+          "temperature": 3.0,
+          "validation_log_mae": 0.16139389919793123,
+          "grouped_standard_error": 0.023142883546861934,
+          "validation_group_count": 40
+        },
+        "ood_kernel": {
+          "temperature": 3.0,
+          "quantile": 0.9,
+          "fallback": "median",
+          "validation_log_mae": 0.16036791740661377,
+          "grouped_standard_error": 0.023156366092123983,
+          "validation_group_count": 40
+        },
+        "primary_method": "uniform",
+        "accuracy_best": {
+          "method": "uniform",
+          "validation_log_mae": 0.1324873071054811
+        },
+        "selection_rule": {
+          "name": "grouped_one_standard_error",
+          "grouping": "victim_id and heldout_block after seed averaging",
+          "complexity_order": [
+            "uniform",
+            "median",
+            "kernel",
+            "ood_kernel"
+          ],
+          "threshold": 0.15293447266828641
+        }
+      }
+    }
+  },
+  "selection_mode": "crossed_cv",
+  "fixed_selection_source": null,
+  "selection_metric": "grouped application-slowdown log MAE (victim/block/seed averaging); auxiliary errors are diagnostic only",
+  "epoch_selection_inference": "calibrated",
+  "calibration": {
+    "calibration_lambda": 1.0,
+    "lambda_candidates": [
+      0.1,
+      1.0,
+      10.0
+    ],
+    "select_lambda": true,
+    "weights": "uniform",
+    "huber_delta": 1.0,
+    "tolerance": 1e-10,
+    "max_iterations": 200
+  },
+  "fixed_settings": {
+    "lambda_abs": 1.0,
+    "lambda_delta": 1.0,
+    "lambda_aux": 0.1,
+    "context": {}
+  },
+  "ood_distance_calibration": {
+    "scaler": {
+      "feature_set": "base",
+      "epsilon": 1e-12,
+      "mean": [
+        2.88392364419232,
+        0.12377399222567773,
+        16.304677965314283,
+        27.11764507087001
+      ],
+      "scale": [
+        1.4741612507449129,
+        0.16868881753655918,
+        2.09586486666292,
+        3.1988899727703934
+      ]
+    },
+    "count": 90,
+    "median": 1.8251044750213623
+  }
+}

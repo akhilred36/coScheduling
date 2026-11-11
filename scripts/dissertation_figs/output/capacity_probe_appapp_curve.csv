@@ -1,0 +1,2 @@
+run,baseline log MAE,absolute Δ%,joint_cal Δ%,joint_direct Δ%,bprof_cal Δ%,bctx_cal Δ%,delta_uniform Δ%,delta_median Δ%,generic Δ%
+"current recipe (part a, 100 seeds)",0.1030,0.0,-10.549685034035383,-1.949324487972659,-10.23072833611125,-10.44243939599533,41.76432191539901,13.26989842330284,42.58972237760994

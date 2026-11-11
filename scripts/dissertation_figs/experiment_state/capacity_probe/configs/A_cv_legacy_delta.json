@@ -1,0 +1,108 @@
+{
+  "max_profiles": 10,
+  "evaluation_method": "random_split",
+  "training_apps": [
+    "amg",
+    "beatnik",
+    "fiesta",
+    "kripke",
+    "laghos",
+    "lammps",
+    "minife",
+    "minivite",
+    "quicksilver",
+    "tricount"
+  ],
+  "inhibitor_blocks": 4,
+  "clustering_algorithm": "kmeans",
+  "clustering_seed": 1701,
+  "cv_seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "final_seeds": [
+    0
+  ],
+  "model_candidates": [
+    {
+      "feature_set": "base",
+      "hidden_dim": 8,
+      "embedding_dim": 4,
+      "rank": 2,
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001,
+      "aux_hidden_dim": 8
+    },
+    {
+      "feature_set": "base",
+      "hidden_dim": 16,
+      "embedding_dim": 8,
+      "rank": 4,
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001,
+      "aux_hidden_dim": 16
+    },
+    {
+      "feature_set": "base",
+      "hidden_dim": 32,
+      "embedding_dim": 8,
+      "rank": 4,
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001,
+      "aux_hidden_dim": 32
+    },
+    {
+      "feature_set": "base",
+      "hidden_dim": 32,
+      "embedding_dim": 16,
+      "rank": 8,
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001,
+      "aux_hidden_dim": 32
+    }
+  ],
+  "model_candidates_by_variant": null,
+  "max_epochs": 120,
+  "patience": 40,
+  "batches_per_epoch": 4,
+  "batch_size": 128,
+  "temperatures": [
+    0.1,
+    0.3,
+    1.0,
+    3.0,
+    10.0
+  ],
+  "ood_quantiles": [
+    0.9,
+    0.95,
+    0.99
+  ],
+  "ood_fallbacks": [
+    "uniform",
+    "median"
+  ],
+  "bootstrap_samples": 1000,
+  "bootstrap_seed": 923,
+  "device": "cpu",
+  "selection_mode": "crossed_cv",
+  "variants": [
+    "legacy_delta"
+  ],
+  "lambda_abs": 1.0,
+  "lambda_delta": 1.0,
+  "lambda_aux": 0.1,
+  "context": {},
+  "calibration": {},
+  "epoch_selection_inference": "calibrated",
+  "frozen_panel_csv": null,
+  "false_benign_threshold": 1.05,
+  "fixed_final_epochs_by_variant": null,
+  "fixed_aggregations_by_variant": null,
+  "fixed_calibration_lambda_by_variant": null,
+  "fixed_model_configs_by_variant": null,
+  "fixed_selection_source": null
+}

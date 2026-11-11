@@ -145,9 +145,9 @@ def t_ci(x):
     return x.mean() - h, x.mean() + h
 
 
-def cluster_boot(df, col, B=10000, seed=923):
-    """App-cluster bootstrap of the mean of per-app means."""
-    per = df.groupby("App")[col].mean()
+def cluster_boot(df, col, B=10000, seed=923, by="App"):
+    """Cluster bootstrap (clusters = apps, or inhibitor configs) of the mean of per-cluster means."""
+    per = df.groupby(by)[col].mean()
     rng = np.random.default_rng(seed)
     idx = rng.integers(0, len(per), (B, len(per)))
     bm = per.to_numpy()[idx].mean(1)
@@ -207,7 +207,92 @@ p()
 # ------------------------------------------------------------------ S2
 p("## S2. Isolated inhibitors")
 ci = chk[chk.kind == "inhib"]
-if len(ci) == 0 or not ci.valid.any():
+INH_RE = re.compile(r"8_inhib_(\d+)_(\d+)_d_([\d.]+)_(\d+)$")
+KEY = ["Inhib Message Size", "Inhib Wait Time (us)", "Inhib Comm Sparsity", "Run Iteration"]
+inh_new = None
+inh_pairs = None
+if len(ci) and ci.valid.any():
+    p("The inhibitor runs for a fixed duration (`-r 360`), so T_app is ~361 s by construction and is not a "
+      "socket outcome. The socket outcomes are the work done in that window (log total messages sent; bytes = "
+      "messages x size, so the same d) and log T_MPI. d = log(sock1) - log(sock0); positive d for messages means "
+      "the inhibitor injects MORE traffic on sock1.")
+    ok = ci[ci.valid]
+    p(f"- valid inhibitor runs: {len(ok)}/{len(ci)}; threads {sorted(set(ok.threads))}; PU range sock0 "
+      f"{ok[ok.socket_dir == 'sock0'].pu_min.min()}-{ok[ok.socket_dir == 'sock0'].pu_max.max()}, sock1 "
+      f"{ok[ok.socket_dir == 'sock1'].pu_min.min()}-{ok[ok.socket_dir == 'sock1'].pu_max.max()}.")
+    snc = ok[~ok.check.str.contains(r"numa_nodes=\[ 0 1 2 3 \]|numa_nodes=\[ 4 5 6 7 \]")]
+    if len(snc):
+        p(f"- {len(snc)} runs report unexpected NUMA sets ({', '.join(snc.socket_dir + '/' + snc.run)}). "
+          "Their probes show one host (dane261) with sub-NUMA clustering OFF (2 NUMA domains: socket 0 = numa 0, "
+          "socket 1 = numa 1); PUs are on the correct socket, so the runs are kept. The same jobs' sock0 steps "
+          "are on that host too (numa 0 for all its sock0 ranks), so the pair stays matched.")
+    rows = []
+    for s in (0, 1):
+        v = set(ok[ok.socket_dir == f"sock{s}"].run)
+        df = parse_root(EXP / "data_inhib" / f"sock{s}", v, "inhib")
+        df["Socket"] = s
+        rows.append(df)
+    inh_new = pd.concat(rows, ignore_index=True)
+    inh_new["Inhib Comm Sparsity"] = inh_new["Inhib Comm Sparsity"].round(9)
+    run_of = {}
+    for r in ci.run:
+        m_, w_, s_, i_ = INH_RE.match(r).groups()
+        run_of[(int(m_), int(w_), round(float(s_), 9), int(i_))] = r
+    inh_new["run"] = [run_of[tuple(k)] for k in inh_new[KEY].astype(object).itertuples(index=False)]
+    inh_new["first_socket"] = inh_new.run.map(order)
+    inh_new["cfg"] = ("m=" + inh_new["Inhib Message Size"].astype(str) + " w=" + inh_new["Inhib Wait Time (us)"]
+                      .astype(str) + " s=" + inh_new["Inhib Comm Sparsity"].map(lambda x: f"{x:g}"))
+    inh_new.to_csv(OUT_DIR / "socket_pinned_inhib_runs.csv", index=False)
+    p(f"- T_app range over all {len(inh_new)} runs: {inh_new['Inhib App Time Average'].min():.1f}-"
+      f"{inh_new['Inhib App Time Average'].max():.1f} s (fixed-duration check).")
+
+    iw = inh_new.pivot_table(index=["cfg", "Run Iteration"], columns="Socket",
+                             values=["Inhib MPI Time Average", "Inhib Total Messages Sent",
+                                     "Inhib App Time Average"]).dropna()
+    inh_pairs = pd.DataFrame({
+        "dMsg": np.log(iw[("Inhib Total Messages Sent", 1)]) - np.log(iw[("Inhib Total Messages Sent", 0)]),
+        "dMPI": np.log(iw[("Inhib MPI Time Average", 1)]) - np.log(iw[("Inhib MPI Time Average", 0)]),
+        "dApp": np.log(iw[("Inhib App Time Average", 1)]) - np.log(iw[("Inhib App Time Average", 0)]),
+        "msg0": iw[("Inhib Total Messages Sent", 0)], "msg1": iw[("Inhib Total Messages Sent", 1)],
+        "mpi0": iw[("Inhib MPI Time Average", 0)], "mpi1": iw[("Inhib MPI Time Average", 1)],
+    }).reset_index()
+    first_of = inh_new.drop_duplicates("run").set_index(["cfg", "Run Iteration"]).first_socket
+    inh_pairs["first"] = [first_of[(c, i)] for c, i in zip(inh_pairs.cfg, inh_pairs["Run Iteration"])]
+    inh_pairs.to_csv(OUT_DIR / "socket_pinned_inhib_pairs.csv", index=False)
+    cfg_order = (inh_new.drop_duplicates("cfg").sort_values(KEY[:3]).cfg.tolist())
+
+    for col, lab in (("dMsg", "log messages sent (work in the 360 s window)"), ("dMPI", "log T_MPI"),
+                     ("dApp", "log T_app (sanity: should be ~0)")):
+        recs = {}
+        for c in cfg_order:
+            x = inh_pairs[inh_pairs.cfg == c]
+            lo, hi = t_ci(x[col])
+            f0, f1 = x[x["first"] == 0][col].mean(), x[x["first"] == 1][col].mean()
+            recs[c] = {"n": len(x), "mean d": x[col].mean(), "CI lo": lo, "CI hi": hi,
+                       "sock1<sock0": f"{int((x[col] < 0).sum())}/{len(x)}", "order o": (f0 - f1) / 2,
+                       "ratio sock1/sock0": float(np.exp(x[col].mean()))}
+        t = pd.DataFrame(recs).T
+        t.index.name = "inhibitor (-m bytes, -w us, -s)"
+        p()
+        p(f"### {lab}")
+        p(md(t))
+        m, lo, hi = cluster_boot(inh_pairs, col, by="cfg")
+        w = stats.wilcoxon(inh_pairs[col]) if inh_pairs[col].abs().sum() > 0 else None
+        p(f"Pooled over configs (mean of per-config means), config-cluster bootstrap (10,000 draws, seed 923): "
+          f"{m:+.4f} [{lo:+.4f}, {hi:+.4f}] (x{np.exp(m):.4f}); sock1 lower in "
+          f"{int((inh_pairs[col] < 0).sum())}/{len(inh_pairs)} pairs"
+          + (f"; Wilcoxon p = {w.pvalue:.3g}." if w is not None else "."))
+        inh_pairs["_o"] = np.where(inh_pairs["first"] == 0, inh_pairs[col], -inh_pairs[col])
+        mo, olo, ohi = cluster_boot(inh_pairs, "_o", by="cfg")
+        p(f"Pooled order effect (log second-step - log first-step): {mo:+.4f} [{olo:+.4f}, {ohi:+.4f}].")
+        inh_pairs.drop(columns="_o", inplace=True)
+    p()
+    rawi = inh_pairs.groupby("cfg")[["msg0", "msg1", "mpi0", "mpi1"]].mean().loc[cfg_order]
+    rawi.columns = ["msgs sock0", "msgs sock1", "T_MPI sock0 (s)", "T_MPI sock1 (s)"]
+    rawi.index.name = "inhibitor"
+    p("Mean isolated inhibitor outcomes over 4 replicates:")
+    p(md(rawi, "{:.4g}"))
+else:
     cfgs = sorted({re.sub(r"_\d+$", "", r) for r in ci.run})
     p(f"**Not available.** data_inhib/sock0 and sock1 contain {len(ci)} run dirs ({len(cfgs)} configs x 4 reps), "
       f"but all are empty: no .mpiP, no placement_probe.log, no placement_check.txt, and job_logs/8_inhib_* are empty "
@@ -250,7 +335,33 @@ for lab in ("MPI", "app"):
     p(f"Mean log diff over apps {ld.mean():+.4f} (median {ld.median():+.4f}); apps with |log diff| > 2 June CVs: "
       f"{', '.join(drift.index[drift[f'|log diff|/June CV {lab}'] > 2])}.")
 p()
-p("Inhibitor drift (new sock0 vs June/Oct isolated inhibitor baselines): not available, inhibitor data missing (S2).")
+if inh_new is None:
+    p("Inhibitor drift (new sock0 vs June/Oct isolated inhibitor baselines): not available, inhibitor data missing (S2).")
+else:
+    p("### Inhibitors: new sock0 vs earlier isolated inhibitor runs (`processed_data/data_inhib_isolated.csv`, "
+      "mpibind, `-r 360`, 8 nodes)")
+    old = read(PROCESSED / "data_inhib_isolated.csv")
+    old = old[old["Num Nodes"] == 8].copy()
+    old["Inhib Comm Sparsity"] = old["Inhib Comm Sparsity"].round(9)
+    n0i = inh_new[inh_new.Socket == 0]
+    recs = {}
+    for c in cfg_order:
+        g = n0i[n0i.cfg == c]
+        o = old.merge(g[KEY[:3]].drop_duplicates(), on=KEY[:3])
+        rec = {"n old": len(o)}
+        for col, lab in (("Inhib Total Messages Sent", "msgs"), ("Inhib MPI Time Average", "T_MPI")):
+            om, nm = o[col].mean(), g[col].mean()
+            rec[f"old {lab}"] = om
+            rec[f"new sock0 {lab}"] = nm
+            rec[f"log diff {lab}"] = np.log(nm) - np.log(om)
+            rec[f"old CV {lab}"] = o[col].std(ddof=1) / om
+        recs[c] = rec
+    idr = pd.DataFrame(recs).T
+    idr.index.name = "inhibitor"
+    p(md(idr, "{:.4g}"))
+    for lab in ("msgs", "T_MPI"):
+        p(f"Mean log diff {lab} over configs {idr[f'log diff {lab}'].mean():+.4f} "
+          f"(median {idr[f'log diff {lab}'].median():+.4f}).")
 p()
 
 # ------------------------------------------------------------------ S4 co-run comparison

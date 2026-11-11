@@ -1,0 +1,255 @@
+{
+  "max_profiles": 10,
+  "evaluation_method": "both",
+  "training_apps": [
+    "lammps",
+    "tricount",
+    "kripke",
+    "quicksilver"
+  ],
+  "inhibitor_blocks": 4,
+  "clustering_algorithm": "kmeans",
+  "clustering_seed": 1701,
+  "cv_seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "final_seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29
+  ],
+  "model_candidates": [
+    {
+      "feature_set": "base",
+      "hidden_dim": 8,
+      "embedding_dim": 4,
+      "rank": 2,
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001
+    }
+  ],
+  "model_candidates_by_kind": {
+    "absolute": [
+      {
+        "feature_set": "base",
+        "hidden_dim": 8,
+        "embedding_dim": 4,
+        "rank": 2,
+        "learning_rate": 0.001,
+        "weight_decay": 0.0001
+      }
+    ],
+    "generic": [
+      {
+        "feature_set": "base",
+        "hidden_dim": 8,
+        "embedding_dim": 4,
+        "rank": 2,
+        "learning_rate": 0.001,
+        "weight_decay": 0.0001
+      }
+    ],
+    "low_rank": [
+      {
+        "feature_set": "base",
+        "hidden_dim": 16,
+        "embedding_dim": 8,
+        "rank": 4,
+        "learning_rate": 0.003,
+        "weight_decay": 0.001
+      }
+    ]
+  },
+  "max_epochs": 80,
+  "patience": 10,
+  "batches_per_epoch": 4,
+  "batch_size": 128,
+  "temperatures": [
+    0.1,
+    0.3,
+    1.0,
+    3.0,
+    10.0
+  ],
+  "ood_quantiles": [
+    0.9,
+    0.95,
+    0.99
+  ],
+  "ood_fallbacks": [
+    "uniform",
+    "median"
+  ],
+  "bootstrap_samples": 1000,
+  "bootstrap_seed": 923,
+  "device": "auto",
+  "inference_anchor_counts": [
+    "all"
+  ],
+  "inference_anchor_seed": 1701,
+  "selection_mode": "fixed_global",
+  "fixed_final_epochs_by_kind": {
+    "absolute": 6,
+    "generic": 4,
+    "low_rank": 4
+  },
+  "fixed_aggregations_by_kind": {
+    "generic": {
+      "accuracy_best": {
+        "fallback": "uniform",
+        "grouped_standard_error": 0.003999866515440254,
+        "method": "ood_kernel",
+        "quantile": 0.9,
+        "temperature": 10.0,
+        "validation_group_count": 39,
+        "validation_log_mae": 0.02035875036451031
+      },
+      "kernel": {
+        "grouped_standard_error": 0.003407239066928254,
+        "temperature": 0.1,
+        "validation_group_count": 39,
+        "validation_log_mae": 0.02322426096615843
+      },
+      "median": {
+        "grouped_standard_error": 0.004095493430830283,
+        "validation_group_count": 39,
+        "validation_log_mae": 0.021095107123493502
+      },
+      "model_config_validation_log_mae": 0.02140654577871268,
+      "ood_kernel": {
+        "fallback": "median",
+        "grouped_standard_error": 0.003407593434701749,
+        "quantile": 0.9,
+        "temperature": 0.1,
+        "validation_group_count": 39,
+        "validation_log_mae": 0.02321832046541608
+      },
+      "primary_method": "uniform",
+      "selected_config_id": 0,
+      "selection_rule": {
+        "complexity_order": [
+          "uniform",
+          "median",
+          "kernel",
+          "ood_kernel"
+        ],
+        "grouping": "victim_id and heldout_block after seed averaging",
+        "name": "grouped_one_standard_error",
+        "numerical_best_method": "median",
+        "threshold": 0.025190600554323785
+      },
+      "uniform": {
+        "grouped_standard_error": 0.0043627660413451935,
+        "validation_group_count": 39,
+        "validation_log_mae": 0.02140654590502328
+      }
+    },
+    "low_rank": {
+      "accuracy_best": {
+        "fallback": "uniform",
+        "grouped_standard_error": 0.004467719254138625,
+        "method": "ood_kernel",
+        "quantile": 0.9,
+        "temperature": 10.0,
+        "validation_group_count": 39,
+        "validation_log_mae": 0.020605848186639263
+      },
+      "focused_runner_selection_rule": "minimum_grouped_cv_log_mae",
+      "kernel": {
+        "grouped_standard_error": 0.0039567420091258364,
+        "temperature": 0.1,
+        "validation_group_count": 39,
+        "validation_log_mae": 0.02446578226225742
+      },
+      "median": {
+        "grouped_standard_error": 0.00451334446090055,
+        "validation_group_count": 39,
+        "validation_log_mae": 0.021249409147716027
+      },
+      "model_config_validation_log_mae": 0.020617268445167918,
+      "ood_kernel": {
+        "fallback": "uniform",
+        "grouped_standard_error": 0.003955727606018826,
+        "quantile": 0.9,
+        "temperature": 10.0,
+        "validation_group_count": 39,
+        "validation_log_mae": 0.024436488967356916
+      },
+      "primary_method": "ood_kernel",
+      "selected_config_id": 2,
+      "selection_rule": {
+        "complexity_order": [
+          "uniform",
+          "median",
+          "kernel",
+          "ood_kernel"
+        ],
+        "grouping": "victim_id and heldout_block after seed averaging",
+        "name": "grouped_one_standard_error",
+        "numerical_best_method": "uniform",
+        "threshold": 0.025307888191629276
+      },
+      "uniform": {
+        "grouped_standard_error": 0.004690619866543346,
+        "validation_group_count": 39,
+        "validation_log_mae": 0.02061726832508593
+      }
+    }
+  },
+  "fixed_selection_source": {
+    "model_selection": {
+      "absolute": {
+        "final_epochs": 6,
+        "selected_config_id": 0,
+        "selection_source": "crossed App-Inhibitor validation only",
+        "validation_log_mae": 0.031826212240663836
+      },
+      "generic": {
+        "final_epochs": 4,
+        "selected_config_id": 0,
+        "selection_source": "crossed App-Inhibitor validation only",
+        "validation_log_mae": 0.02140654577871268
+      },
+      "low_rank": {
+        "final_epochs": 4,
+        "selected_config_id": 2,
+        "selection_source": "crossed App-Inhibitor validation only",
+        "validation_log_mae": 0.020617268445167918
+      }
+    },
+    "selection_scope": "all evaluation application profiles and App-Inhibitor responses; no App-App outcomes",
+    "selection_sha256": "560d26be6ac766b0e9513e993ae2e1a1af046eb77b17f1bcf65cece63e16e174",
+    "task_id": "run_c92db30b7f2e8b51"
+  }
+}

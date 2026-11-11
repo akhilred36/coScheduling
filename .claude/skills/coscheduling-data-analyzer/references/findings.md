@@ -232,27 +232,13 @@ the 10 apps plus the 9 panel inhibitors (`-r 360`).
     so put `notebooks/` on `sys.path` and import `utils.parse_coscheduling_runs`.
   - `steps.txt` has start/end epochs (`date +%s.%N`) per socket step. These are srun launch times, not MPI_Init times.
 
-## 6b. Still pending (as of 2026-11-07)
+## 6b. Still pending (as of 2026-11-08)
 
-- **Isolated inhibitor data (S2 + inhibitor drift).** In `20261107_180934`, all 72 `data_inhib/sock*/8_inhib_*` dirs
-  were empty: no `.mpiP`, no placement files, and empty `job_logs/8_inhib_*`. The chapter director is raising this
-  with Akhil. The dir names cover exactly the 9 MPI panel inhibitors, with no extras.
-
-  When the data lands, replace the placeholder S2 block in `analysis_socket_pinned.py`, which currently prints
-  "Not available":
-  1. Parse each valid root with `parse_inhibitor_isolated`. Columns: `Inhib Message Size`, `Inhib Wait Time (us)`,
-     `Inhib Comm Sparsity`, `Run Iteration`, `Inhib App Time Average`, `Inhib MPI Time Average`.
-  2. Repeat the S1 tables (paired d per config, t CI, sign count, order effect, config-cluster bootstrap).
-  3. Repeat the S3 drift check against `processed_data/data_inhib_isolated.csv`, the June/Oct isolated inhibitors,
-     which were run with `-r 360`.
-  4. Round sparsity to 9 digits when merging.
-  5. Check whether inhibitor dirs have placement files at all before applying `check_run`.
-  6. Rerun both socket scripts. `analysis_socket_matched.py` rewrites everything from `## S5.` onward in
-     `socket_numbers.md`.
-  7. Message the chapter director with the results.
+- Isolated inhibitor data landed 2026-11-08 and S2 is done (§7b). Not yet messaged to the chapter director.
 - If the `*_full_20261017` roots become available:
   - regenerate the artifact figures directly from `consolidated/predictions.csv`;
   - re-score joint MPI and the artifact-recipe delta models under JMs (S6 gap).
+- Socket batch 2 (socket-aware pipelines, A1–A5 then B/C) requested by the chapter director 2026-11-08.
 
 ## 7. Socket-pinned isolated results (experiment 20261107_180934, analyzed 2026-11-07)
 
@@ -294,3 +280,165 @@ Full numbers: `scripts/dissertation_figs/output/socket_numbers.md`.
   artifact CIs for current (J) numbers.
 - **Figure:** `Dissertation/figures/node_sharing/socket_isolated.pdf` (full width). Per app it shows the isolated reps
   plus mean and t CI, next to the App-Inh and App-App co-run median and IQR.
+
+## 7b. Socket-pinned isolated inhibitors (S2, analyzed 2026-11-08)
+
+Full numbers: `socket_numbers.md` §S2 and the inhibitor block of §S3; runs in `output/socket_pinned_inhib_{runs,pairs}.csv`.
+- **Validity:** 72/72 valid (9 panel configs × 4 reps × 2 sockets), all thread 0, rc 0, T_app 360–362 s.
+  - 2 sock1 runs list NUMA {1,4,5,6,7}. That is host **dane261**, which has SNC **off** (2 NUMA domains: socket 0 = numa 0,
+    socket 1 = numa 1). PUs are correct, so the runs are kept. Other nodes have SNC on (§1); note that the hardware is not uniform.
+- **The inhibitor is fixed-duration (`-r 360`)**, so T_app is not an outcome. The outcomes are messages sent in 360 s
+  (= work and intensity) and T_MPI.
+- **Messages sent:** no socket effect. Pooled d −0.0011 [−0.0023, +0.0001], every config |d| < 0.5%, order effect ~0.
+  Inhibitor **intensity is socket-independent**, so the aggressor strength in App-Inh co-runs doesn't depend on which socket
+  the inhibitor got.
+- **T_MPI:** pooled mean +0.048 [−0.019, +0.152]. That is driven by 2 single-run spikes (m=200 w=2e5 1-peer rep1 sock1
+  4.49 s vs ~0.5; m=2.5e6 w=2e5 1-peer rep3 sock1 21.8 vs ~15), both where sock1 ran first. Sign count 25/36 sock1 lower
+  (Wilcoxon p = 0.017). CI excludes 0 only for m=4e4 w=1e6 s=0.1 (−0.057, 4/4) and m=2.5e6 w=6e5 1-peer (−0.025, 4/4).
+  So sock1 is slightly faster, by a few %, which is small next to the app effects.
+- **Drift vs earlier isolated inhibitors (new sock0 vs `data_inhib_isolated.csv`):** messages agree within ~1% except
+  m=500 w=5e3 s=0.05 (+8.4%). Its old reps were noisy (T_MPI 17–70 s, CV 58%) against a new range of 12.7–18.7 s, which
+  gives a T_MPI log diff of −1.06. The tiny m=200 config has +0.45 log T_MPI (0.36 → 0.57 s). Other configs are +0.01 to +0.09.
+- **App-Inh labels / JMs are unaffected:** the slowdown is the app's T_co/T_iso. Inhibitor d would only matter for
+  inhibitor profile features.
+
+## 8. Socket batch 2 (socket-aware pipelines; started 2026-11-08, director-approved A5)
+
+- **Facts:**
+  - A1: always complementary sockets.
+  - A2: 166 resolved App-App cells (42 one-rep); 169 resolved panel cells.
+  - Floors: panel MPI 46/169, App-App MPI 52/166.
+  - Details in `output/socket_aware_numbers.md` Part A and `socket_aware_facts.md`.
+- **dane261:** in 31 Aug App-Inh co-runs, 4 June/Oct isolated inhibitors and 2 Nov socket jobs. Not in any June
+  app baseline or App-App run. The host table is `output/run_hosts.csv` (`scan_hosts.py`).
+- **Code:**
+  - Copies `notebooks/utils/*_socketAware/` (4 dirs) have a `socket_feature` flag. Originals are untouched.
+  - Resolved data is in `*_socketAware/data_socket/`, built by `scripts/dissertation_figs/socket_batch2_prepare.py`.
+  - Each endpoint gets its own socket bit as an input.
+  - Absolute loss is weighted 1/n_resolved.
+  - Anchors: all resolved anchors, no socket subsets. One calibration offset per victim. No d_inh.
+- **Runs:**
+  - `~/hpcResearch/experiment_outputs/socket_batch2/`: `repro_*` = original code; `blind_*` / `aware_*` = copies.
+  - The one-way control is the runner of `delta_response_filteredInhibs` on `_totalTime/data/mpi_time` (the 1W and
+    1W-TT code are identical except the default data path).
+  - Driver: `socket_batch2_run1w.sh`.
+- **Scoring:**
+  - `socket_aware_score.py` produces B1 (resolved) and B2 (rep-averaged, aggregated in slowdown space).
+  - Offset model = blind absolute latent + s_V·d̄ (JMs: CI excludes 0).
+- **Machine:** BD CV costs about 1.6 s per fit at 2 threads.
+- **Order agreed with the director:** full-data B1/B2 → B3 → B5 → C1/C2 → B4.
+  - B4 runs only if the measured cost is ≤ 5 h; otherwise ask first.
+  - Report selected HPs for blind and aware side by side.
+  - Blind runs from the copies must be bit-for-bit equal to the originals.
+- **Status 2026-11-08 23:59: full data DONE for all 4 pipelines; numbers sent to the director in 3 updates.**
+  - Verification:
+    - all 4 `repro_*` equal the artifact (6 decimals);
+    - all 4 `blind_*` copies equal the repros bit-for-bit;
+    - aware App-App aggregation matches the recomputation to 5e-16.
+  - Verdict: the learned socket bit does not help.
+    - Worse: generic everywhere, absolute and delta uniform on MPI (CIs > 0).
+    - Only gain: median delta on total time (1W-TT −0.0095, BD-TT −0.0045).
+    - Best socket-aware MPI predictor: the fixed offset model (blind absolute + s_V·d̄, all-app 0.1011 vs 0.1035,
+      −8.2% vs baseline). It beats the learned bit by 0.008–0.009.
+  - Caveat (a subagent diagnosed it from checkpoints):
+    - BD/1W absolute, joint, profile and context models train 1–7 epochs × 4 batches, i.e. near init.
+    - The App-App level drifts with epochs and seeds; several aware variants floor everywhere.
+    - Not a socket-code bug: token-count clamping and socket filtering move latents ≤ 0.04.
+  - The absolute model is shared code in 1W and BD: its ratios are identical, so C2 shows one absolute series.
+- **Figures:** `socket_aware_figs.py` → `socket_aware_forest.pdf` (C1), `socket_aware_pervictim.pdf` (C2).
+- **B4:** measured cost is about 6–11 h wall (1W final eval 8–15 min per task × 70 tasks per run).
+  - Sent options (a) full, (b) BD only ~1.5–2 h, (c) BD + 3/10 1W splits, (d) skip. **Awaiting the director's choice.**
+  - Runner `--resume` rejects copied tune tasks, because `status.json` `output_dir` is absolute. Rewrite it to reuse tuning.
+- **Ops lesson:** never edit `socket_batch2_run*.sh` while runs use it. Bash re-reads scripts mid-run (exit 127 at the
+  evaluate line); fix by re-running the script, which resumes.
+
+**§8 update 2026-11-09: control E (epoch-matched) + B4 launch.**
+- E configs: `scripts/dissertation_figs/socket_batch2_epochmatch.py`. Runs are in `socket_batch2/E{0,1,2}_*`; scorer `socket_epochmatch_score.py`
+  writes `output/socket_epochmatch_numbers.md`. Both pipelines have `selection_mode: fixed_global`; the BD fixed replay (E0)
+  reproduces the CV run exactly (max |Δ| 0.0).
+- The aware absolute response predicts the floor on all 166 cells at the blind epochs too, in all 4 pipelines. Blind at the aware
+  epochs does not (17.5% floor), so the collapse comes with the socket input (probably the init RNG shift). Untested idea: socket
+  bit fed as a constant 0.
+- The BD-MPI calibrated FB = 1.0 collapse goes away at the blind recipe (E1: FB 0.25/0.26; λ 10→1 and fewer epochs). The
+  delta/generic penalties survive at equal recipe (they come from the socket bit). The TT median-delta win also survives.
+- FB@1.05 = fraction of HARMFUL outcomes predicted benign (FB 1.0 = all missed). Don't word it as "classified correctly".
+- B4 (BD only, decided by Akhil): `scripts/dissertation_figs/socket_batch2_b4_bd.sh` plans a runner root and registers the existing
+  CV run as tune_global. The `_SUCCESS.json` must carry the runner's `execution_fingerprint`, or `evaluate --resume` re-runs the
+  1.5 h tuning. Size 2 (and probably 3) fails with "inhibitor_blocks exceeds the number of panel inhibitors", as in the artifact
+  (hence 50 = sizes 4–8).
+- **D1/D2 (2026-11-09), overturns the B1 reading.** D1 = aware code with the socket bit fed as a constant 0, at the E1 recipe.
+  Patched copies are in `socket_batch2/d1_code/`; the generator is `socket_batch2_diag.py`. D1 predictions are identical across
+  sockets, so the bit is the only socket pathway. D1 − blind (init from the extra column) reproduces nearly all of the
+  penalties (up to +0.03) and the absolute floor collapse. E1 − D1 (information) is small and ≤ 0 wherever it is significant
+  (−0.001 to −0.008). The TT median-delta "win" is mostly init too. D2 (aware epochs, λ = 1) shows the calibrated BD-MPI
+  FB = 1.0 comes from λ = 10. The CV prefers λ = 10 over 1 by only 0.001–0.005, yet the choice flips FB from 0.09 to 1.0. The
+  near-init models are seed/init sensitive at about ±0.03, even averaged over 5 final seeds.
+- 2026-11-09 B4 done (`socket_b4_score.py` → `output/socket_b4_numbers.md`). Roots socket_batch2/b4_{blind,aware}_bd_{mpi,tt}.
+  Validation: completion 47/50 per root (8/9/10/10/10), sizes 2–3 0/20, the same 23 panel_smaller_than_cv_blocks failures
+  as the artifact; each random_split task = its CV run (max |Δ| 0); blind B4 on the artifact's 20 C4 cells reproduces
+  the artifact C4 one_known entries exactly (MPI and TT). 47 matched cells.
+  BD-MPI: aware absolute and context-cal at the floor (floor frac ≥ 0.99), skill 0 vs blind +4–6%; paired n.s.
+  joint/bprof cal paired n.s. (aware floor frac 0.37–0.60 vs 0.11–0.17); generic worse (+0.021*, ZS +0.028*);
+  delta median better ZS only (−0.032*). BD-TT: aware better on absolute, delta median, ZS joint/bprof (all ≤ 0.011),
+  generic ZS worse; TT is floor-dominated (blind floor frac ≈ 0.7), so the gains come from predicting the floor more.
+  Aware training panels: ~1.9× rows, floor-row share 26% vs 18% (MPI), 38–41% vs 30–33% (TT); one-sided cells ≈ 10%.
+- 2026-11-09 Seed pilot S0 (`seed_pilot.py` → `output/seed_pilot_numbers.md`, `seed_cost_plan.md`; run socket_batch2/seed_pilot/P0,
+  BD-MPI blind, fixed_global, final_seeds 0–29; seeds 0–4 = the old run exactly). Near-init variants (absolute, joint, bprof,
+  bctx) are trimodal per seed: ~1/3 blow up (Δ% > +25), many at the floor, median single seed = baseline. The ensemble (mean
+  latent → floor) drifts with k: joint cal 0.108 (k=5) → 0.094 (k=30); absolute → the floor on all 90 outcomes at k=30
+  (= baseline, FB 1.0). So the "absolute −8.5%" is a 5-seed artifact (holds in 42% of 5-subsets). Delta/generic are stable.
+  Jackknife SE at N=30: delta/generic ~0.0025, calibrated 0.003–0.006, direct 0.012–0.017. Costs: BD full 60+13N s,
+  1W full 140+43N s, BD restricted task 60+31N s. Sent to the director; waiting on the go and the N choice.
+
+## 9. Seed batch and BD-MPI training probes (2026-11-09 to 11)
+
+### Scripts and outputs
+Scripts are in `scripts/dissertation_figs`:
+- `seed_score.py`, `seed_restricted_score.py`;
+- `retune_probe_{build,run,score}.py`, `retune_probe_chain.sh`, `capacity_probe_chain.sh`;
+- `figs_seed.py`, `figs_probe.py`.
+
+Outputs are in `output/`:
+- `seed_numbers.md` (part a, N=100);
+- `seed_restricted_numbers.md` (b/c, N=30);
+- `retune_probe_numbers.md`, `capacity_probe_numbers.md`;
+- `cv_vs_appapp_N100.md`;
+- `retune_probe_incident_20261109.md`.
+
+Raw runs are in `~/hpcResearch/experiment_outputs/{seed_batch,retune_probe,capacity_probe}`.
+
+### Label rule (director-accepted)
+- **sign-unstable:** jackknife seed SE > 0.002 AND |est| < 2·SE. If |est|/SE is between 1.9 and 2.1, the two-level CI decides.
+- **Otherwise:** holds / fails / n.s. by the two-level (pairs×seeds) CI.
+
+### Part (a), N=100
+- **Absolute:** at the floor in all 4 pipelines, so it equals the baseline. App-App log MAE is 0.1030 (MPI) and 0.0156 (TT). The artifact's 5-seed absolute numbers are seed artifacts.
+- **Calibrated variants vs baseline:** no two-level CI excludes 0. BD-MPI joint cal is −10.5%, n.s.
+- **CV vs App-App Spearman at N=100:**
+
+  | 1W-MPI | 1W-TT | BD-MPI | BD-TT |
+  |---|---|---|---|
+  | +0.50 | −1.00 | +0.81 | +0.62 |
+
+- **Delta aggregation:** 1W-TT uses ood_kernel; the other three pipelines use uniform.
+
+### (b)/(c), restricted tiers
+- **Completion:** matches the artifact. Seeds 0–4 reproduce the artifact's C4 exactly.
+- **Zero-shot delta/generic:** significantly worse than the baseline.
+- **"No gain with size":** holds formally in every row. But BD zero-shot delta/generic slopes are > 0 in 100% of 5-seed draws.
+
+### Training probes (BD-MPI)
+- **Retune probe** (240 epochs, CV-selected):
+  - Learned-profile variants: the fold-averaged CV curve is minimised at epoch 1, but the protocol picks 16–37 epochs.
+  - At those budgets, joint cal is +30.8% (n.s.) and generic is significantly worse than the baseline.
+  - Mechanism: under-prediction flips to over-prediction on benign pairs.
+- **Capacity probe** (4 configs): CV prefers the larger models. At the CV budget, joint cal is +12.4% (n.s.).
+  - The only CI-excluding gain anywhere is absolute at the sensitivity budget: 32-dim model, 1 epoch, −11.7% [−23.0, −0.4]. It comes from shrinkage, not skill.
+- **At 1 epoch:** joint, bprof and bwall cal are numerically identical, so the C7 ablations are untestable at near-init budgets.
+- **Socket bit (E1 − D1):** helps delta/generic by 0.002–0.011 log MAE once they are trained past near-init. It never helps the calibrated variants.
+
+### Pipeline-copy pitfall
+- **Symptom:** a single-variant crossed-CV run crashed after all its fits finished.
+- **Cause:** the run writes an empty `ablation_summary.csv` (it has no internal contrasts), and re-reading that file raised EmptyDataError.
+- **Fix:** an EmptyDataError guard, added to the BD socket-aware copy only.
+- **Note:** `pgrep -f <name>` inside a `bash -c` wait loop matches itself, so use a PID or log marker instead.

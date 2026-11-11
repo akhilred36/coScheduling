@@ -5,9 +5,9 @@ Placement: `srun --whole --mpibind=off --cpu-bind=none` + `numactl --physcpubind
 ## Run validity
 - app sock0: 40 run dirs, valid 40, PLACEMENT_FAILED 0, no .mpiP 0, missing placement_check 0
 - app sock1: 40 run dirs, valid 40, PLACEMENT_FAILED 0, no .mpiP 0, missing placement_check 0
-- inhib sock0: 36 run dirs, valid 0, PLACEMENT_FAILED 0, no .mpiP 36, missing placement_check 36
-- inhib sock1: 36 run dirs, valid 0, PLACEMENT_FAILED 0, no .mpiP 36, missing placement_check 36
-- valid app runs: threads seen ['0']; PU range sock0 0.0-55.0, sock1 56.0-111.0; all 448-448 ranks.
+- inhib sock0: 36 run dirs, valid 36, PLACEMENT_FAILED 0, no .mpiP 0, missing placement_check 0
+- inhib sock1: 36 run dirs, valid 36, PLACEMENT_FAILED 0, no .mpiP 0, missing placement_check 0
+- valid app runs: threads seen ['0']; PU range sock0 0-55, sock1 56-111; all 448-448 ranks.
 
 ## S1. Isolated socket effect for apps, paired within job: d = log(sock1) - log(sock0)
 Negative d means sock1 is faster. CI = t interval over the 4 replicates (n = 4 is too small for a bootstrap). 'sock1<sock0' counts the replicates with sock1 faster. Order effect: o = (mean d | sock0 ran first - mean d | sock1 ran first)/2 = log(second step) - log(first step); the order-balanced socket effect is the average of the two order means, which equals mean d when the design is balanced (2 + 2).
@@ -63,8 +63,68 @@ Mean isolated times (s) over 4 replicates:
 | TriC | 215.06 | 214.63 | 389.50 | 388.50 |
 
 ## S2. Isolated inhibitors
-**Not available.** data_inhib/sock0 and sock1 contain 72 run dirs (9 configs x 4 reps), but all are empty: no .mpiP, no placement_probe.log, no placement_check.txt, and job_logs/8_inhib_* are empty (no steps.txt, no Slurm output). The inhibitor jobs have not run or their output was not copied.
-Configs covered by the directory names (exactly the 9 full-data MPI panel inhibitors, no extras): 8_inhib_2000000_1000000_d_0.3, 8_inhib_20000_100000_d_0.1, 8_inhib_200_200000_d_0.002237136, 8_inhib_2500000_200000_d_0.002237136, 8_inhib_2500000_600000_d_0.002237136, 8_inhib_400000_1000000_d_0.5, 8_inhib_40000_1000000_d_0.1, 8_inhib_40000_1000000_d_0.7, 8_inhib_500_5000_d_0.05
+The inhibitor runs for a fixed duration (`-r 360`), so T_app is ~361 s by construction and is not a socket outcome. The socket outcomes are the work done in that window (log total messages sent; bytes = messages x size, so the same d) and log T_MPI. d = log(sock1) - log(sock0); positive d for messages means the inhibitor injects MORE traffic on sock1.
+- valid inhibitor runs: 72/72; threads ['0']; PU range sock0 0-55, sock1 56-111.
+- 2 runs report unexpected NUMA sets (sock1/8_inhib_20000_100000_d_0.1_2, sock1/8_inhib_40000_1000000_d_0.7_0). Their probes show one host (dane261) with sub-NUMA clustering OFF (2 NUMA domains: socket 0 = numa 0, socket 1 = numa 1); PUs are on the correct socket, so the runs are kept. The same jobs' sock0 steps are on that host too (numa 0 for all its sock0 ranks), so the pair stays matched.
+- T_app range over all 72 runs: 360.0-362.0 s (fixed-duration check).
+
+### log messages sent (work in the 360 s window)
+| inhibitor (-m bytes, -w us, -s) | n | mean d | CI lo | CI hi | sock1<sock0 | order o | ratio sock1/sock0 |
+|---|---|---|---|---|---|---|---|
+| m=200 w=200000 s=0.00223714 | 4 | -0.0028 | -0.0117 | 0.0061 | 1/4 | 0.0028 | 0.9972 |
+| m=500 w=5000 s=0.05 | 4 | -0.0009 | -0.0032 | 0.0014 | 3/4 | -0.0008 | 0.9991 |
+| m=20000 w=100000 s=0.1 | 4 | 0.0004 | -0.0004 | 0.0012 | 1/4 | 0.0004 | 1.0004 |
+| m=40000 w=1000000 s=0.1 | 4 | 0.0000 | 0.0000 | 0.0000 | 0/4 | 0.0000 | 1.0000 |
+| m=40000 w=1000000 s=0.7 | 4 | 0.0015 | -0.0012 | 0.0042 | 0/4 | -0.0000 | 1.0015 |
+| m=400000 w=1000000 s=0.5 | 4 | -0.0000 | -0.0052 | 0.0052 | 1/4 | -0.0020 | 1.0000 |
+| m=2000000 w=1000000 s=0.3 | 4 | -0.0029 | -0.0083 | 0.0025 | 2/4 | -0.0029 | 0.9971 |
+| m=2500000 w=200000 s=0.00223714 | 4 | -0.0047 | -0.0209 | 0.0115 | 1/4 | 0.0053 | 0.9953 |
+| m=2500000 w=600000 s=0.00223714 | 4 | 0.0000 | 0.0000 | 0.0000 | 0/4 | 0.0000 | 1.0000 |
+Pooled over configs (mean of per-config means), config-cluster bootstrap (10,000 draws, seed 923): -0.0011 [-0.0023, +0.0001] (x0.9989); sock1 lower in 9/36 pairs; Wilcoxon p = 0.298.
+Pooled order effect (log second-step - log first-step): +0.0003 [-0.0011, +0.0019].
+
+### log T_MPI
+| inhibitor (-m bytes, -w us, -s) | n | mean d | CI lo | CI hi | sock1<sock0 | order o | ratio sock1/sock0 |
+|---|---|---|---|---|---|---|---|
+| m=200 w=200000 s=0.00223714 | 4 | 0.4306 | -1.3344 | 2.1956 | 3/4 | -0.5863 | 1.5382 |
+| m=500 w=5000 s=0.05 | 4 | 0.0170 | -0.0280 | 0.0620 | 1/4 | 0.0171 | 1.0171 |
+| m=20000 w=100000 s=0.1 | 4 | -0.0067 | -0.0226 | 0.0093 | 3/4 | -0.0062 | 0.9933 |
+| m=40000 w=1000000 s=0.1 | 4 | -0.0567 | -0.1011 | -0.0124 | 4/4 | -0.0104 | 0.9448 |
+| m=40000 w=1000000 s=0.7 | 4 | -0.0172 | -0.0355 | 0.0012 | 4/4 | 0.0033 | 0.9830 |
+| m=400000 w=1000000 s=0.5 | 4 | -0.0002 | -0.0125 | 0.0122 | 2/4 | -0.0003 | 0.9998 |
+| m=2000000 w=1000000 s=0.3 | 4 | -0.0013 | -0.0092 | 0.0066 | 2/4 | 0.0039 | 0.9987 |
+| m=2500000 w=200000 s=0.00223714 | 4 | 0.0885 | -0.2145 | 0.3916 | 2/4 | -0.0971 | 1.0926 |
+| m=2500000 w=600000 s=0.00223714 | 4 | -0.0254 | -0.0464 | -0.0044 | 4/4 | 0.0008 | 0.9749 |
+Pooled over configs (mean of per-config means), config-cluster bootstrap (10,000 draws, seed 923): +0.0476 [-0.0187, +0.1515] (x1.0488); sock1 lower in 25/36 pairs; Wilcoxon p = 0.0171.
+Pooled order effect (log second-step - log first-step): -0.0750 [-0.2077, +0.0029].
+
+### log T_app (sanity: should be ~0)
+| inhibitor (-m bytes, -w us, -s) | n | mean d | CI lo | CI hi | sock1<sock0 | order o | ratio sock1/sock0 |
+|---|---|---|---|---|---|---|---|
+| m=200 w=200000 s=0.00223714 | 4 | 0.0000 | 0.0000 | 0.0000 | 0/4 | 0.0000 | 1.0000 |
+| m=500 w=5000 s=0.05 | 4 | 0.0000 | 0.0000 | 0.0000 | 0/4 | 0.0000 | 1.0000 |
+| m=20000 w=100000 s=0.1 | 4 | 0.0000 | 0.0000 | 0.0000 | 0/4 | 0.0000 | 1.0000 |
+| m=40000 w=1000000 s=0.1 | 4 | -0.0014 | -0.0039 | 0.0012 | 2/4 | 0.0000 | 0.9986 |
+| m=40000 w=1000000 s=0.7 | 4 | 0.0000 | -0.0036 | 0.0036 | 1/4 | 0.0014 | 1.0000 |
+| m=400000 w=1000000 s=0.5 | 4 | 0.0007 | -0.0015 | 0.0029 | 0/4 | -0.0007 | 1.0007 |
+| m=2000000 w=1000000 s=0.3 | 4 | -0.0007 | -0.0049 | 0.0035 | 2/4 | 0.0007 | 0.9993 |
+| m=2500000 w=200000 s=0.00223714 | 4 | 0.0000 | 0.0000 | 0.0000 | 0/4 | 0.0000 | 1.0000 |
+| m=2500000 w=600000 s=0.00223714 | 4 | -0.0007 | -0.0029 | 0.0015 | 1/4 | -0.0007 | 0.9993 |
+Pooled over configs (mean of per-config means), config-cluster bootstrap (10,000 draws, seed 923): -0.0002 [-0.0006, +0.0002] (x0.9998); sock1 lower in 6/36 pairs; Wilcoxon p = 0.261.
+Pooled order effect (log second-step - log first-step): +0.0001 [-0.0003, +0.0005].
+
+Mean isolated inhibitor outcomes over 4 replicates:
+| inhibitor | msgs sock0 | msgs sock1 | T_MPI sock0 (s) | T_MPI sock1 (s) |
+|---|---|---|---|---|
+| m=200 w=200000 s=0.00223714 | 1.609e+06 | 1.605e+06 | 0.5661 | 1.501 |
+| m=500 w=5000 s=0.05 | 6.836e+08 | 6.83e+08 | 14.93 | 15.24 |
+| m=20000 w=100000 s=0.1 | 7.054e+07 | 7.057e+07 | 16.43 | 16.32 |
+| m=40000 w=1000000 s=0.1 | 7.357e+06 | 7.357e+06 | 3.487 | 3.294 |
+| m=40000 w=1000000 s=0.7 | 4.737e+07 | 4.744e+07 | 23.21 | 22.82 |
+| m=400000 w=1000000 s=0.5 | 2.568e+07 | 2.568e+07 | 105.8 | 105.7 |
+| m=2000000 w=1000000 s=0.3 | 1.028e+07 | 1.025e+07 | 191.2 | 191 |
+| m=2500000 w=200000 s=0.00223714 | 1.543e+06 | 1.536e+06 | 15.23 | 16.85 |
+| m=2500000 w=600000 s=0.00223714 | 5.3e+05 | 5.3e+05 | 5.351 | 5.216 |
 
 ## S3. Launcher/epoch drift (NOT a socket effect): new sock0 vs June isolated baselines
 June isolated runs: mpibind, 56 ranks/node on PUs 112-167 (SMT thread 1 of socket 0), no `--whole`. New sock0: numactl, PUs 0-55 (thread 0 of the same cores), `--whole`, Nov 2026. Same socket, so the difference mixes launcher, SMT thread index, memory policy (--localalloc), software/system state, and node set.
@@ -99,7 +159,20 @@ Mean log diff over apps +0.1093 (median +0.0696); apps with |log diff| > 2 June 
 | TriC | 378.0000 | 389.5000 | 1.0304 | 0.0300 | 0.0140 | 0.0459 | 2.1409 |
 Mean log diff over apps +0.0161 (median +0.0127); apps with |log diff| > 2 June CVs: Beatnik, Kripke, LAMMPS, Quicksilver, TriC.
 
-Inhibitor drift (new sock0 vs June/Oct isolated inhibitor baselines): not available, inhibitor data missing (S2).
+### Inhibitors: new sock0 vs earlier isolated inhibitor runs (`processed_data/data_inhib_isolated.csv`, mpibind, `-r 360`, 8 nodes)
+| inhibitor | n old | old msgs | new sock0 msgs | log diff msgs | old CV msgs | old T_MPI | new sock0 T_MPI | log diff T_MPI | old CV T_MPI |
+|---|---|---|---|---|---|---|---|---|---|
+| m=200 w=200000 s=0.00223714 | 4 | 1.609e+06 | 1.609e+06 | 0 | 0 | 0.3596 | 0.5661 | 0.4539 | 0.0952 |
+| m=500 w=5000 s=0.05 | 4 | 6.285e+08 | 6.836e+08 | 0.08392 | 0.07836 | 42.94 | 14.93 | -1.057 | 0.5785 |
+| m=20000 w=100000 s=0.1 | 4 | 7.08e+07 | 7.054e+07 | -0.003645 | 0.0006059 | 15.05 | 16.43 | 0.08767 | 0.01318 |
+| m=40000 w=1000000 s=0.1 | 4 | 7.357e+06 | 7.357e+06 | 0 | 0 | 3.432 | 3.487 | 0.01586 | 0.02985 |
+| m=40000 w=1000000 s=0.7 | 4 | 4.762e+07 | 4.737e+07 | -0.005183 | 0.001706 | 21.73 | 23.21 | 0.06621 | 0.02737 |
+| m=400000 w=1000000 s=0.5 | 4 | 2.573e+07 | 2.568e+07 | -0.001961 | 0.03157 | 105.1 | 105.8 | 0.006403 | 0.07605 |
+| m=2000000 w=1000000 s=0.3 | 4 | 1.013e+07 | 1.028e+07 | 0.01482 | 0.02413 | 194 | 191.2 | -0.01428 | 0.02343 |
+| m=2500000 w=200000 s=0.00223714 | 4 | 1.546e+06 | 1.543e+06 | -0.001595 | 0.001195 | 14.67 | 15.23 | 0.03708 | 0.02827 |
+| m=2500000 w=600000 s=0.00223714 | 4 | 5.304e+05 | 5.3e+05 | -0.000845 | 0.001379 | 4.977 | 5.351 | 0.07249 | 0.1005 |
+Mean log diff msgs over configs +0.0095 (median -0.0008).
+Mean log diff T_MPI over configs -0.0368 (median +0.0371).
 
 ## S4. Isolated vs co-run socket effect on log T_MPI (sock1 - sock0)
 Co-run columns reproduce figs_batch1 C8 (App-Inh: per config with reps on both sockets; App-App: per non-self directional outcome with reps on both sockets). 'co-run minus isolated' = App-Inh mean minus isolated mean d: the part of the co-run socket gap not explained by the isolated (baseline) socket gap.

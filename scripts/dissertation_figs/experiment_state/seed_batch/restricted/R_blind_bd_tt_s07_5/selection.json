@@ -1,0 +1,395 @@
+{
+  "variants": {
+    "legacy_delta": {
+      "spec": {
+        "name": "legacy_delta",
+        "family": "legacy_potential",
+        "legacy_kind": "low_rank",
+        "lambda_abs": 1.0,
+        "lambda_delta": 1.0,
+        "lambda_aux": 0.0,
+        "aux_tasks": [],
+        "use_context": false,
+        "token_directions": "forward_plus_reverse",
+        "description": "original low-rank delta-only potential with anchor aggregation"
+      },
+      "selected_config_id": 0,
+      "model_config": {
+        "aux_hidden_dim": 8,
+        "embedding_dim": 4,
+        "feature_set": "base",
+        "hidden_dim": 8,
+        "learning_rate": 0.001,
+        "rank": 2,
+        "weight_decay": 0.0001
+      },
+      "final_epochs": 3,
+      "final_epoch_source": "fixed_global_selection",
+      "selection_source": "globally frozen App-Inhibitor selection",
+      "aggregation": {
+        "accuracy_best": {
+          "fallback": "uniform",
+          "method": "ood_kernel",
+          "quantile": 0.9,
+          "temperature": 10.0,
+          "validation_log_mae": 0.03378408562275828
+        },
+        "kernel": {
+          "grouped_standard_error": 0.004374431755911492,
+          "temperature": 0.1,
+          "validation_group_count": 39,
+          "validation_log_mae": 0.03777185005457665
+        },
+        "median": {
+          "grouped_standard_error": 0.004133439198143042,
+          "validation_group_count": 39,
+          "validation_log_mae": 0.03509407578066265
+        },
+        "ood_kernel": {
+          "fallback": "median",
+          "grouped_standard_error": 0.00436723636835102,
+          "quantile": 0.9,
+          "temperature": 0.1,
+          "validation_group_count": 39,
+          "validation_log_mae": 0.03775505591099771
+        },
+        "primary_method": "uniform",
+        "selection_rule": {
+          "complexity_order": [
+            "uniform",
+            "median",
+            "kernel",
+            "ood_kernel"
+          ],
+          "grouping": "victim_id and heldout_block after seed averaging",
+          "name": "grouped_one_standard_error",
+          "threshold": 0.03889621342263283
+        },
+        "uniform": {
+          "grouped_standard_error": 0.004424061223279847,
+          "validation_group_count": 39,
+          "validation_log_mae": 0.034472152199352984
+        }
+      }
+    },
+    "legacy_generic": {
+      "spec": {
+        "name": "legacy_generic",
+        "family": "legacy_potential",
+        "legacy_kind": "generic",
+        "lambda_abs": 1.0,
+        "lambda_delta": 1.0,
+        "lambda_aux": 0.0,
+        "aux_tasks": [],
+        "use_context": false,
+        "token_directions": "forward_plus_reverse",
+        "description": "original generic delta-only potential with anchor aggregation"
+      },
+      "selected_config_id": 0,
+      "model_config": {
+        "aux_hidden_dim": 8,
+        "embedding_dim": 4,
+        "feature_set": "base",
+        "hidden_dim": 8,
+        "learning_rate": 0.001,
+        "rank": 2,
+        "weight_decay": 0.0001
+      },
+      "final_epochs": 4,
+      "final_epoch_source": "fixed_global_selection",
+      "selection_source": "globally frozen App-Inhibitor selection",
+      "aggregation": {
+        "accuracy_best": {
+          "fallback": "uniform",
+          "method": "ood_kernel",
+          "quantile": 0.9,
+          "temperature": 10.0,
+          "validation_log_mae": 0.020358752341779775
+        },
+        "kernel": {
+          "grouped_standard_error": 0.003407239099050844,
+          "temperature": 0.1,
+          "validation_group_count": 39,
+          "validation_log_mae": 0.023224261959569177
+        },
+        "median": {
+          "grouped_standard_error": 0.004095493576796702,
+          "validation_group_count": 39,
+          "validation_log_mae": 0.02109510825063262
+        },
+        "ood_kernel": {
+          "fallback": "median",
+          "grouped_standard_error": 0.0034075934562705257,
+          "quantile": 0.9,
+          "temperature": 0.1,
+          "validation_group_count": 39,
+          "validation_log_mae": 0.023218321535243037
+        },
+        "primary_method": "uniform",
+        "selection_rule": {
+          "complexity_order": [
+            "uniform",
+            "median",
+            "kernel",
+            "ood_kernel"
+          ],
+          "grouping": "victim_id and heldout_block after seed averaging",
+          "name": "grouped_one_standard_error",
+          "threshold": 0.025190601827429323
+        },
+        "uniform": {
+          "grouped_standard_error": 0.0043627662001134646,
+          "validation_group_count": 39,
+          "validation_log_mae": 0.021406547465187595
+        }
+      }
+    },
+    "legacy_absolute": {
+      "spec": {
+        "name": "legacy_absolute",
+        "family": "legacy_absolute",
+        "legacy_kind": "absolute",
+        "lambda_abs": 1.0,
+        "lambda_delta": 1.0,
+        "lambda_aux": 0.0,
+        "aux_tasks": [],
+        "use_context": false,
+        "token_directions": "forward_plus_reverse",
+        "description": "original architecture-matched absolute-response model"
+      },
+      "selected_config_id": 0,
+      "model_config": {
+        "aux_hidden_dim": 8,
+        "embedding_dim": 4,
+        "feature_set": "base",
+        "hidden_dim": 8,
+        "learning_rate": 0.001,
+        "rank": 2,
+        "weight_decay": 0.0001
+      },
+      "final_epochs": 6,
+      "final_epoch_source": "fixed_global_selection",
+      "selection_source": "globally frozen App-Inhibitor selection"
+    },
+    "joint_profile": {
+      "spec": {
+        "name": "joint_profile",
+        "family": "joint",
+        "legacy_kind": null,
+        "lambda_abs": 1.0,
+        "lambda_delta": 1.0,
+        "lambda_aux": 0.0,
+        "aux_tasks": [],
+        "use_context": false,
+        "token_directions": "forward_plus_reverse",
+        "description": "joint absolute+delta response with a victim level term"
+      },
+      "selected_config_id": 0,
+      "model_config": {
+        "aux_hidden_dim": 8,
+        "embedding_dim": 4,
+        "feature_set": "base",
+        "hidden_dim": 8,
+        "learning_rate": 0.001,
+        "rank": 2,
+        "weight_decay": 0.0001
+      },
+      "final_epochs": 5,
+      "final_epoch_source": "fixed_global_selection",
+      "selection_source": "globally frozen App-Inhibitor selection",
+      "calibration_lambda": 1.0,
+      "calibration_lambda_source": "fixed_global_selection"
+    },
+    "bidirectional_profile": {
+      "spec": {
+        "name": "bidirectional_profile",
+        "family": "joint",
+        "legacy_kind": null,
+        "lambda_abs": 1.0,
+        "lambda_delta": 1.0,
+        "lambda_aux": 0.1,
+        "aux_tasks": [
+          "bw_wall",
+          "bw_mpi",
+          "msg_wall"
+        ],
+        "use_context": false,
+        "token_directions": "forward_plus_reverse",
+        "description": "joint response plus forward and reverse bandwidth supervision"
+      },
+      "selected_config_id": 0,
+      "model_config": {
+        "aux_hidden_dim": 8,
+        "embedding_dim": 4,
+        "feature_set": "base",
+        "hidden_dim": 8,
+        "learning_rate": 0.001,
+        "rank": 2,
+        "weight_decay": 0.0001
+      },
+      "final_epochs": 3,
+      "final_epoch_source": "fixed_global_selection",
+      "selection_source": "globally frozen App-Inhibitor selection",
+      "calibration_lambda": 1.0,
+      "calibration_lambda_source": "fixed_global_selection"
+    },
+    "bidirectional_context": {
+      "spec": {
+        "name": "bidirectional_context",
+        "family": "joint",
+        "legacy_kind": null,
+        "lambda_abs": 1.0,
+        "lambda_delta": 1.0,
+        "lambda_aux": 0.1,
+        "aux_tasks": [
+          "bw_wall",
+          "bw_mpi",
+          "msg_wall"
+        ],
+        "use_context": true,
+        "token_directions": "forward_plus_reverse",
+        "description": "bidirectional model with measured application response fingerprints"
+      },
+      "selected_config_id": 0,
+      "model_config": {
+        "aux_hidden_dim": 8,
+        "embedding_dim": 4,
+        "feature_set": "base",
+        "hidden_dim": 8,
+        "learning_rate": 0.001,
+        "rank": 2,
+        "weight_decay": 0.0001
+      },
+      "final_epochs": 1,
+      "final_epoch_source": "fixed_global_selection",
+      "selection_source": "globally frozen App-Inhibitor selection",
+      "calibration_lambda": 1.0,
+      "calibration_lambda_source": "fixed_global_selection"
+    },
+    "bidirectional_profile_wall": {
+      "spec": {
+        "name": "bidirectional_profile_wall",
+        "family": "joint",
+        "legacy_kind": null,
+        "lambda_abs": 1.0,
+        "lambda_delta": 1.0,
+        "lambda_aux": 0.1,
+        "aux_tasks": [
+          "bw_wall",
+          "msg_wall"
+        ],
+        "use_context": false,
+        "token_directions": "forward_plus_reverse",
+        "description": "ablation: wall-clock-only auxiliary tasks (no MPI-time throughput)"
+      },
+      "selected_config_id": 0,
+      "model_config": {
+        "aux_hidden_dim": 8,
+        "embedding_dim": 4,
+        "feature_set": "base",
+        "hidden_dim": 8,
+        "learning_rate": 0.001,
+        "rank": 2,
+        "weight_decay": 0.0001
+      },
+      "final_epochs": 4,
+      "final_epoch_source": "fixed_global_selection",
+      "selection_source": "globally frozen App-Inhibitor selection",
+      "calibration_lambda": 1.0,
+      "calibration_lambda_source": "fixed_global_selection"
+    },
+    "bidirectional_context_forward": {
+      "spec": {
+        "name": "bidirectional_context_forward",
+        "family": "joint",
+        "legacy_kind": null,
+        "lambda_abs": 1.0,
+        "lambda_delta": 1.0,
+        "lambda_aux": 0.1,
+        "aux_tasks": [
+          "bw_wall",
+          "bw_mpi",
+          "msg_wall"
+        ],
+        "use_context": true,
+        "token_directions": "forward_only",
+        "description": "ablation: fingerprints without reverse (inhibitor-endpoint) evidence"
+      },
+      "selected_config_id": 0,
+      "model_config": {
+        "aux_hidden_dim": 8,
+        "embedding_dim": 4,
+        "feature_set": "base",
+        "hidden_dim": 8,
+        "learning_rate": 0.001,
+        "rank": 2,
+        "weight_decay": 0.0001
+      },
+      "final_epochs": 2,
+      "final_epoch_source": "fixed_global_selection",
+      "selection_source": "globally frozen App-Inhibitor selection",
+      "calibration_lambda": 10.0,
+      "calibration_lambda_source": "fixed_global_selection"
+    }
+  },
+  "selection_mode": "fixed_global",
+  "fixed_selection_source": {
+    "fixed_settings": [
+      "architecture",
+      "optimizer",
+      "lambda_abs",
+      "lambda_delta",
+      "lambda_aux",
+      "context recipe"
+    ],
+    "searched_settings": [
+      "final_epochs",
+      "legacy aggregation parameters",
+      "calibration_lambda"
+    ],
+    "selection_scope": "all evaluation application profiles and App-Inhibitor responses; no App-App outcomes",
+    "selection_sha256": "cd8106cd5142abc8c28b9ef0fd3ac8292df8cf3eb48d7fc201c3e22d3342e09b",
+    "task_id": "run_d93d5ee5925a71d3"
+  },
+  "selection_metric": "grouped application-slowdown log MAE (victim/block/seed averaging); auxiliary errors are diagnostic only",
+  "epoch_selection_inference": "calibrated",
+  "calibration": {
+    "calibration_lambda": 1.0,
+    "lambda_candidates": [
+      0.1,
+      1.0,
+      10.0
+    ],
+    "select_lambda": true,
+    "weights": "uniform",
+    "huber_delta": 1.0,
+    "tolerance": 1e-10,
+    "max_iterations": 200
+  },
+  "fixed_settings": {
+    "lambda_abs": 1.0,
+    "lambda_delta": 1.0,
+    "lambda_aux": 0.1,
+    "context": {}
+  },
+  "ood_distance_calibration": {
+    "scaler": {
+      "feature_set": "base",
+      "epsilon": 1e-12,
+      "mean": [
+        3.2231449137335724,
+        0.09288436530811753,
+        17.47788689350148,
+        27.134980096374285
+      ],
+      "scale": [
+        0.8735598096679131,
+        0.06640549859850722,
+        2.32298920251503,
+        1.105235828518757
+      ]
+    },
+    "count": 23,
+    "median": 2.281752109527588
+  }
+}

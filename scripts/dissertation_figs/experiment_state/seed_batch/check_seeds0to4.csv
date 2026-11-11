@@ -1,0 +1,37 @@
+job,file,max |Δ latent|,rows,note
+F_blind_bd_mpi,seed_predictions.csv,1.457167719820518e-16,2200,ref rows 2200
+F_E1_bd_mpi,seed_predictions.csv,0.12255046713140498,2200,ref rows 2200
+F_E1_bd_mpi,seed_predictions_socket.csv,1.457167719820518e-16,4400,ref rows 4400
+F_D1_bd_mpi,seed_predictions.csv,0.13788330165552903,2200,ref rows 2200
+F_D1_bd_mpi,seed_predictions_socket.csv,1.43982048506075e-16,4400,ref rows 4400
+F_awareCV_bd_mpi,seed_predictions.csv,0.12081987854774597,2200,ref rows 2200
+F_awareCV_bd_mpi,seed_predictions_socket.csv,1.3877787807814457e-16,4400,ref rows 4400
+F_blind_bd_tt,seed_predictions.csv,1.6306400674181987e-16,2200,ref rows 2200
+F_E1_bd_tt,seed_predictions.csv,0.0953834106592117,2200,ref rows 2200
+F_E1_bd_tt,seed_predictions_socket.csv,1.3877787807814457e-16,4400,ref rows 4400
+F_D1_bd_tt,seed_predictions.csv,0.09398717880249022,2200,ref rows 2200
+F_D1_bd_tt,seed_predictions_socket.csv,1.4051260155412137e-16,4400,ref rows 4400
+F_awareCV_bd_tt,seed_predictions.csv,0.10160254389047618,2200,ref rows 2200
+F_awareCV_bd_tt,seed_predictions_socket.csv,1.3877787807814457e-16,4400,ref rows 4400
+F_D2_bd_mpi,seed_predictions.csv,0.1261558558632035,2200,ref rows 2200
+F_D2_bd_mpi,seed_predictions_socket.csv,1.3877787807814457e-16,4400,ref rows 4400
+F_blind_1w_mpi,seed_predictions.csv,1.1102230246251565e-16,1100,ref rows 1100
+F_awareCV_1w_mpi,seed_predictions.csv,1.6653345369377348e-16,1100,ref rows 1100
+F_awareCV_1w_mpi,seed_predictions_socket.csv,2.220446049250313e-16,2000,ref rows 2000
+F_E1_1w_mpi,seed_predictions.csv,1.6653345369377348e-16,1100,ref rows 1100
+F_E1_1w_mpi,seed_predictions_socket.csv,1.3877787807814457e-16,2000,ref rows 2000
+F_D1_1w_mpi,seed_predictions.csv,1.249000902703301e-16,1100,ref rows 1100
+F_D1_1w_mpi,seed_predictions_socket.csv,1.249000902703301e-16,2000,ref rows 2000
+F_blind_1w_tt,seed_predictions.csv,1.196959198423997e-16,1100,ref rows 1100
+F_awareCV_1w_tt,seed_predictions.csv,1.3877787807814457e-16,1100,ref rows 1100
+F_awareCV_1w_tt,seed_predictions_socket.csv,1.249000902703301e-16,2000,ref rows 2000
+F_E1_1w_tt,seed_predictions.csv,1.3877787807814457e-16,1100,ref rows 1100
+F_E1_1w_tt,seed_predictions_socket.csv,1.3877787807814457e-16,2000,ref rows 2000
+F_D1_1w_tt,seed_predictions.csv,1.4051260155412137e-16,1100,ref rows 1100
+F_D1_1w_tt,seed_predictions_socket.csv,1.4051260155412137e-16,2000,ref rows 2000
+R_blind_1w_mpi_s00_4,-,,0,no reference
+R_blind_1w_mpi_s00_5,-,,0,no reference
+R_blind_1w_mpi_s00_6,-,,0,no reference
+R_blind_1w_mpi_s00_7,-,,0,no reference
+R_blind_1w_mpi_s00_8,-,,0,no reference
+R_blind_1w_mpi_s06_8,-,,0,no reference
