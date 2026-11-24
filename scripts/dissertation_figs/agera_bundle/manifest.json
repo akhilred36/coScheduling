@@ -1,0 +1,52 @@
+{
+  "created_by": "scripts/dissertation_figs/v2/v2_build.py",
+  "panel": [
+    "8_2000000_1000000_0.3",
+    "8_20000_100000_0.1",
+    "8_200_200000_0.002237136",
+    "8_2500000_200000_0.002237136",
+    "8_2500000_600000_0.002237136",
+    "8_400000_1000000_0.5",
+    "8_40000_1000000_0.1",
+    "8_40000_1000000_0.7",
+    "8_500_5000_0.05"
+  ],
+  "apps": [
+    "amg",
+    "beatnik",
+    "fiesta",
+    "kripke",
+    "laghos",
+    "lammps",
+    "minife",
+    "minivite",
+    "quicksilver",
+    "tricount"
+  ],
+  "files": {
+    "apps.csv": {
+      "rows": 10,
+      "sha256": "8946d8e1dfded163872330188ba09db1923cf38f2c6d06d95940c8faaff79f40"
+    },
+    "panel_inhibitors.csv": {
+      "rows": 9,
+      "sha256": "9dc1fdcac8a4ab9680bb56005c5a4a1e47186f3cb57fa7cce12640a09c578463"
+    },
+    "panel_app.csv": {
+      "rows": 90,
+      "sha256": "59575842a9b71a5f49317730a788b186a23e486423bd80391268e6b71353960a"
+    },
+    "appinh_resolved.csv": {
+      "rows": 169,
+      "sha256": "3661632b239992ba9d1652d6faafd15840187dcf82299249378eb7ace4c9dc42"
+    },
+    "appapp_rows.csv": {
+      "rows": 176,
+      "sha256": "c0ff21dc6bb233ef3ab1d53af23dbb4e897798c42618141e1cf88e9149006271"
+    },
+    "jms_factors.csv": {
+      "rows": 20,
+      "sha256": "ba18122cd1d266ba0967bc8752f5866aaa5af1d12e5ffc7fedf4364d6eecfff7"
+    }
+  }
+}

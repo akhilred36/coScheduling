@@ -1,0 +1,8 @@
+# Raw per-task outputs (preds/*.csv.gz, hp/*.csv, done/*.json, errors/) are ~166 MB and are not committed.
+# Only the logs, run_config.json, status.json and README.md are tracked. See README.md.
+*/preds/
+*/hp/
+*/done/
+*/errors/
+local_pilot_a_partial/
+local_pilot_a_partial.log

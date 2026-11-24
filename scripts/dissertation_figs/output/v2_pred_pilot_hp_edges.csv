@@ -1,0 +1,23 @@
+method,axis,values,n_tasks,frac_low_edge,frac_high_edge,categorical_shares,flag_gt30
+absolute,lr,"[0.001, 0.003]",16,0.125,0.875,,True
+absolute,weight_decay,"[0.0001, 0.01]",16,0.125,0.875,,True
+absolute,epochs,"[10.0, 20.0, 40.0, 80.0, 160.0]",16,0.0,0.125,,False
+delta,lr,"[0.001, 0.003]",16,0.25,0.75,,True
+delta,weight_decay,"[0.0001, 0.01]",16,0.4375,0.5625,,True
+delta,epochs,"[10.0, 20.0, 40.0, 80.0, 160.0]",16,0.0625,0.3125,,True
+delta,agg,"['kernel_0.3', 'kernel_1', 'kernel_3', 'median', 'uniform']",16,,,"{'kernel_1': 0.625, 'kernel_3': 0.312, 'median': 0.062}",False
+lasso,alpha,"[0.001, 0.003, 0.01, 0.03, 0.1, 0.3]",32,0.0,0.3125,,True
+mlp,weight_decay,"[0.0001, 0.01]",32,0.34375,0.65625,,True
+mlp,epochs,"[100.0, 300.0, 1000.0]",32,0.71875,0.28125,,True
+mlp,hidden,"['16', '32-16']",32,,,"{'32-16': 0.844, '16': 0.156}",False
+rf,max_depth,"[3.0, 6.0]",32,0.375,0.1875,,True
+rf,min_samples_leaf,"[1.0, 3.0, 5.0]",32,0.5625,0.125,,True
+rf,max_features,"[0.33, 1.0]",32,0.34375,0.65625,,True
+ridge,alpha,"[0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]",32,0.0,0.3125,,True
+svr,C,"[0.1, 1.0, 10.0]",32,0.15625,0.40625,,True
+svr,epsilon,"[0.05, 0.2]",32,0.5,0.5,,True
+svr,gamma,"['0.3/p', 'scale']",32,,,"{'0.3/p': 0.688, 'scale': 0.312}",False
+xgb,max_depth,"[2.0, 4.0]",32,0.6875,0.3125,,True
+xgb,n_estimators,"[100.0, 300.0]",32,0.8125,0.1875,,True
+xgb,learning_rate,"[0.03, 0.1]",32,0.78125,0.21875,,True
+xgb,min_child_weight,"[1.0, 5.0]",32,0.5,0.5,,True

@@ -1,4 +1,4 @@
-# Verified findings (as of 2026-11-07)
+# Verified findings (as of 2026-11-07; §10 added 2026-11-23. For the current state, read v2_handoff.md first)
 
 All numbers below were verified from code, logs or data. Full tables are in
 `scripts/dissertation_figs/output/{batch1_numbers,placement_numbers,figs_batch1_numbers,batch2_methods,batch2_numbers,batch2_panels,socket_numbers}.md`.
@@ -442,3 +442,12 @@ Raw runs are in `~/hpcResearch/experiment_outputs/{seed_batch,retune_probe,capac
 - **Cause:** the run writes an empty `ablation_summary.csv` (it has no internal contrasts), and re-reading that file raised EmptyDataError.
 - **Fix:** an EmptyDataError guard, added to the BD socket-aware copy only.
 - **Note:** `pgrep -f <name>` inside a `bash -c` wait loop matches itself, so use a PID or log marker instead.
+
+## 10. Plan v2 (unclipped, JMs baseline; 2026-11-22 to 23; director-verified)
+
+- **Conventions:** unclipped log ratio ln(T_co/T_base); JMs baseline = June iso mean × exp(d) for socket-1 reps, d applied only to AMG2023 and Quicksilver (both timers). Tables: `v2/v2_build.py` → `output/v2_*` and `agera_bundle/`.
+- **Characterization:** `v2/v2_char.py` (B1–B4), `v2/v2_char2.py` (B8: heatmaps, asymmetry, fixed effects, profile, SE, inhibitor response, scale) → `output/v2_char{,2}_numbers.md`. B8 regenerated slowdown_vs_profile, inhib_response, scale_1node (unclipped).
+- **Prediction study:** ran on agera (`v2/agera_pipeline.py`; runs `agera_out/v2_full_20261123` + xgb rerun `v2_xgbdeep_20261123`). Scored by `v2/v2_score.py --xgb-rerun ...`; figures by `v2/v2_pred_figs.py` (r_skill, r_paired_diffs, r_pervictim). Numbers in `output/v2_pred_v2_full_20261123*.{md,csv}` and `v2_pred_figs_numbers.md`.
+- **⚠ Old bug:** `analysis_batch1.py` B3 "total-time asymmetry ρ = 0.39 on raw values" paired raw_app_time_ratio_A with raw_mpi_time_ratio_B. The correct value is ≈ 0.20 (n.s.). Don't cite the old number.
+- **Asymmetry Spearman depends on pair orientation.** Cite the as-run A/B orientation (MPI JMs ρ = 0.326, p = 0.029); the orientation-free value (0.343) goes in a footnote.
+- AMG2023 and Laghos are tied as most susceptible victim under JMs. Unclipped there are 5 resolved speedups (< 1 − 2 SE): 4 with MiniFE as victim, plus FIESTA←Beatnik.

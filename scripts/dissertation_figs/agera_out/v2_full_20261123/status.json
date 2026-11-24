@@ -1,0 +1,11 @@
+{
+ "state": "finished",
+ "pid": 296739,
+ "workers": 78,
+ "tasks_total": 7280,
+ "tasks_todo_at_start": 7280,
+ "done_this_run": 7280,
+ "failures": 0,
+ "elapsed_s": 14303,
+ "updated": "2026-11-23 09:00:07"
+}
