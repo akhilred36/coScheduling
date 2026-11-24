@@ -10,6 +10,7 @@ Run with: /home/akhil/hpcResearch/python_venvs/ml_analysis/bin/python
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import numpy as np
@@ -19,7 +20,8 @@ REPO = Path(__file__).resolve().parents[2]
 PROCESSED = REPO / "processed_data"
 BIDIR = REPO / "notebooks/utils/delta_response_filteredInhibs_biDirectional"
 BIDIR_TT = REPO / "notebooks/utils/delta_response_filteredInhibs_biDirectional_totalTime"
-FIG_DIR = Path("/home/akhil/hpcResearch/repos/Dissertation/figures/node_sharing")
+# Dissertation repo is a sibling of this repo on every machine; NS_FIG_DIR overrides.
+FIG_DIR = Path(os.environ.get("NS_FIG_DIR", REPO.parent / "Dissertation/figures/node_sharing"))
 OUT_DIR = Path(__file__).resolve().parent / "output"
 
 APPS = ["amg", "beatnik", "fiesta", "kripke", "laghos", "lammps", "minife",

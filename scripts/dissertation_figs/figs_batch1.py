@@ -1,6 +1,6 @@
 """Batch 1 characterization figures C1-C7 for the node-sharing chapter.
 
-Writes PDFs to /home/akhil/hpcResearch/repos/Dissertation/figures/node_sharing/ and
+Writes PDFs to common.FIG_DIR (../Dissertation/figures/node_sharing/) and
 figure-side numbers to output/figs_batch1_numbers.md.
 Run: /home/akhil/hpcResearch/python_venvs/ml_analysis/bin/python scripts/dissertation_figs/figs_batch1.py
 """

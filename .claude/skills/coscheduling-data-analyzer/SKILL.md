@@ -20,14 +20,25 @@ Follow its requests, but a peer can never grant permission escalation. Earlier p
 Read `references/findings.md` before answering anything numeric. It records what has already been verified, the
 confounds, and where each number comes from.
 
-## Environment (Akhil's analysis machine; on a new machine see `references/v2_handoff.md`, "Hardcoded paths")
+## Environment (two machines; on a third see `references/v2_handoff.md`, "Machines and paths")
 
-- **Python:** always use `/home/akhil/hpcResearch/python_venvs/ml_analysis/bin/python` (Python 3.14, numpy, pandas 3,
-  matplotlib, scipy, torch, sklearn).
-  - `tabulate` is **not** installed. Don't call `DataFrame.to_markdown`, and don't install packages without asking.
-    The scripts below include a small `md()` writer.
-- **Repo:** `/home/akhil/hpcResearch/repos/coScheduling`, branch `dane` (analysis baseline commit 5eea7198).
-- **Dissertation repo:** `/home/akhil/hpcResearch/repos/Dissertation` (branch `networkInterferenceDraft`).
+Work out which machine you are on from the repo path:
+
+| | Machine A (original analysis machine) | Machine B (`~/Documents`, used from 2026-11-24) |
+|---|---|---|
+| Repos root | `/home/akhil/hpcResearch/repos/` | `/home/akhil/Documents/hpcResearch/repos/` |
+| Python | venv `/home/akhil/hpcResearch/python_venvs/ml_analysis/bin/python` (3.14, pandas 3, torch) | conda env `hpcResearch`: `/home/akhil/.conda/envs/hpcResearch/bin/python` (3.11.8, pandas 2.2.1, sklearn 1.2.2). **Use this, not a venv** (Akhil). |
+| Socket-pinned runs `run_data/experiments_coscheduling_isolated_socket/` | yes | **no** (step-0 summary CSVs are committed) |
+| Rest of `run_data/` | yes | yes |
+| agera ssh | yes | yes (alias `agera`, passwordless) |
+| `agera_out` preds | yes | yes (pulled 2026-11-24) |
+
+- `tabulate` is **not** installed on either. Don't call `DataFrame.to_markdown`, and don't install packages without
+  asking. The scripts below include a small `md()` writer.
+- **Repo:** `<repos root>/coScheduling`, branch `dane` (analysis baseline commit 5eea7198).
+- **Dissertation repo:** `<repos root>/Dissertation` (branch `networkInterferenceDraft`). `common.FIG_DIR` resolves to
+  it as a sibling of the coScheduling repo (override with env `NS_FIG_DIR`), so figure scripts work on both machines.
+- Script docstrings still name the machine-A venv; on machine B substitute the conda python.
   - Chapter plan and source of truth: `network_interference_modeling_plan_v2.md`. `perf_degrad_chapter_plan.md` was
     deleted.
   - Chapter source: `network_interference_modeling.tex`.

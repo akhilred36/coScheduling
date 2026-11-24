@@ -23,7 +23,7 @@ decisions D1–D10 and the verified chapter numbers; `perf_degrad_chapter_plan.m
 
 ## Pipeline end to end
 
-All commands run from the repo root. `PY` is the analysis venv; see "Hardcoded paths" below. Each script writes its
+All commands run from the repo root. `PY` is the machine's analysis Python; see "Machines and paths" below. Each script writes its
 numbers file to `scripts/dissertation_figs/output/`.
 
 | Step | Script (`scripts/dissertation_figs/v2/`) | Reads | Writes | Feeds |
@@ -62,8 +62,10 @@ longer match the bundle, and the scorer would score against new rows.
 
 - **On agera:** `/nfs/research/compass/aalasandagutti/coScheduling/scripts/dissertation_figs/agera_out/`
   (v2_full_20261123, v2_xgbdeep_20261123, pilot_a, pilot_b, pilot2_a, pilot2_b, each with a `.log`).
-- **On Akhil's analysis machine:** `/home/akhil/hpcResearch/repos/coScheduling/scripts/dissertation_figs/agera_out/`,
+- **On Akhil's analysis machine (A):** `/home/akhil/hpcResearch/repos/coScheduling/scripts/dissertation_figs/agera_out/`,
   which also has `local_pilot_a_partial`.
+- **On machine B** (`~/Documents/hpcResearch/repos/coScheduling/...`): all agera runs pulled by rsync on 2026-11-24
+  (v2_full 7,280 done, xgbdeep 1,040 done, 0 errors).
 - **Committed:** only each agera run's `.log`, `run_config.json` and `status.json` (pilots have no status.json), plus `agera_out/README.md`. The
   `.gitignore` there excludes preds/hp/done/errors.
 - **Without agera_out:** the scored CSVs in `output/` are enough to regenerate every r_* figure and table. You need
@@ -149,17 +151,26 @@ longer match the bundle, and the scorer would score against new rows.
 - **Pull back:**
   `rsync -av agera:$R/scripts/dissertation_figs/agera_out/<run_id>{,.log} scripts/dissertation_figs/agera_out/`
 
-## Hardcoded paths a new machine must change
+## Machines and paths
 
-- `scripts/dissertation_figs/common.py:22`: `FIG_DIR = /home/akhil/hpcResearch/repos/Dissertation/figures/node_sharing`.
-  Every figure script saves there.
-- **Analysis venv** `/home/akhil/hpcResearch/python_venvs/ml_analysis/bin/python`: appears only in docstrings and
-  in this skill. Any Python ≥ 3.10 with numpy, pandas, scipy, matplotlib and sklearn works for steps 1–2 and 4–5.
-  `tabulate` is not needed.
+Two machines are set up; the machine table is in SKILL.md ("Environment").
+
+- `scripts/dissertation_figs/common.py`: `FIG_DIR` = `REPO.parent / "Dissertation/figures/node_sharing"` (env
+  `NS_FIG_DIR` overrides). It used to be hardcoded to machine A; since 2026-11-24 no change is needed if the
+  Dissertation repo sits next to coScheduling. Every figure script saves there.
+- **Python:** machine A uses the venv `/home/akhil/hpcResearch/python_venvs/ml_analysis/bin/python` (named in
+  docstrings); machine B uses conda env `hpcResearch`. Any Python ≥ 3.10 with numpy, pandas, scipy, matplotlib and
+  sklearn works for steps 1–2 and 4–5. `tabulate` is not needed.
+- **Cross-machine check (2026-11-24):** re-scoring `v2_full_20261123` + xgb rerun on machine B (pandas 2.2.1)
+  reproduced every `output/v2_pred_v2_full_20261123_*.csv` to ≤ 5e-15, **except** `_hp_distribution.csv` for rf
+  `max_depth`. The rf grid includes `None` (unlimited depth), chosen in 23.8% of fits. The committed file (pandas 3,
+  where `astype(str)` keeps NaN missing) drops it, so its depth 1/2/3/6 shares are renormalized without it; pandas 2.2
+  gives 2.0/21.8/22.2/30.1/23.8%. `_hp_edges` also ignores `None`, so it treats 6 as rf's top depth. The chapter cites
+  neither; Akhil decided (2026-11-24) to leave it as is.
 - `REPO`, `OUT_DIR` and the bundle path are relative to the script location, so they need no change.
 - The agera paths above are specific to Akhil's NFS account.
-- `run_data/` (raw logs) exists only on Akhil's analysis machine. Steps 1–5 don't need it, because the step-0 CSVs
-  are committed.
+- `run_data/` (raw logs) exists on machines A and B, except the socket-pinned runs, which are only on A. Steps 1–5
+  don't need it, because the step-0 CSVs are committed.
 
 ## Standing rules
 
