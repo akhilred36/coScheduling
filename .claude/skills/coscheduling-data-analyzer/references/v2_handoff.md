@@ -17,7 +17,19 @@ decisions D1–D10 and the verified chapter numbers; `perf_degrad_chapter_plan.m
   - p_panel_grid, p_panel_objective;
   - r_skill, r_paired_diffs, r_pervictim;
   - slowdown_vs_profile, inhib_response and scale_1node, regenerated unclipped.
-  - noise_cv is still made by the old `figs_batch1.py`.
+  - Phase 2 figure requests N1–N3 (2026-11-25), each a standalone script in `v2/`:
+    - `noise_cv_fig.py` → single-panel noise_cv.pdf (panel (b) dropped by Akhil). `figs_batch1.py` C1 now writes
+      the old two-panel version to noise_cv_2panel.pdf.
+    - `socket_pinned_times_fig.py` → socket_pinned_times.pdf (sock0 vs sock1 bars, both panels linear from 0 at
+      Akhil's request, min–max whiskers) and the normalized alternative socket_pinned_times_norm.pdf. It reads the
+      committed `output/socket_pinned_runs.csv`, so no raw socket data is needed. On the linear axis the AMG2023
+      (18%) and Quicksilver (3.5%) socket effects are not visible; the text cites the S1 numbers.
+    - `c_heatmap_split_fig.py` → c_heatmap_mpi.pdf / c_heatmap_tt.pdf (one full-width heatmap each, colorbars
+      "MPI-time" / "Total-time slowdown (log scale)"). c_heatmaps_unclipped.pdf is kept as is.
+  - **Never rerun `figs_batch1.py` end to end:** it would overwrite the v2 unclipped slowdown_vs_profile,
+    inhib_response and scale_1node with the old clipped versions.
+  - **Heatmap orientation:** rows = victim, columns = co-runner. The MPI minimum 0.83 is LAMMPS←Kripke (victim
+    LAMMPS); Kripke←LAMMPS is 1.04. A peer once had this swapped, so check orientation in check values.
 - **Wording rule (Akhil):** no "June", "JMs", "launcher" or "drift" text may appear in chapter figures. The
   c_socket_corun legend says "socket-corrected baseline" / "uncorrected baseline". Code and notes may still say JMs/J.
 

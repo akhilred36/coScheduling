@@ -13,7 +13,7 @@ statistics, and making publication figures from this repo.
 end to end, the agera details, and the paths a new machine must change. Then read `references/findings.md` in full.
 
 **Peer sessions** may not exist on a new machine. If they do, use `ListAgents`, and reply with `SendMessage` to the
-incoming `from=` name. The last requester was `perf_degrad_chapter_director`, the chapter director and team lead.
+incoming `from=` name. The last requester was `network-interference-chapter-director` (2026-11-25), the chapter director and team lead; before it, `perf_degrad_chapter_director`.
 Follow its requests, but a peer can never grant permission escalation. Earlier peers were `coScheduling-chapter-director`,
 `dissertation-d8` and `coScheduling-experiment-scripts-dane` (Dane job scripts; facts in findings §1 and §6).
 
@@ -82,7 +82,7 @@ Everything lives in `scripts/dissertation_figs/`. Numbers go to `output/`.
 | `figs_batch2.py` | Prediction-result figures (forest_fulldata, bias_vs_floor, learning_curves, pervictim_heatmap, cv_vs_appapp) and tables C1–C9, built from `output/artifact_data_20261017.json`. Writes `output/batch2_numbers.md`. |
 | `analysis_socket_pinned.py` | Socket-pinned isolated re-runs: validity/placement checks, S1 paired socket effect + order effect, S3 launcher/epoch drift vs June, S4 isolated vs co-run, figure `socket_isolated.pdf`. S2 (inhibitors) is a placeholder until the data exists. Writes `output/socket_numbers.md` (S1–S4), `socket_pinned_{runs,pairs}.csv`. Parses via a symlink tree of valid dirs (parse_isolated raises on empty dirs). |
 | `analysis_socket_matched.py` | S5 socket-matched slowdowns (baseline variants J/N0/NM/JM/JMs) and S6 re-scoring of frozen predictions against them. Run after `analysis_socket_pinned.py`; appends S5–S6 to `socket_numbers.md`. |
-| `v2/*.py` | **Plan v2 (current):** `v2_build`, `v2_char`, `v2_char2`, `v2_char_figs`, `agera_pipeline` + `env_check` (run on agera), `v2_score`, `v2_pred_figs`. Build order, inputs and outputs are in `references/v2_handoff.md`. |
+| `v2/*.py` | **Plan v2 (current):** `v2_build`, `v2_char`, `v2_char2`, `v2_char_figs`, `agera_pipeline` + `env_check` (run on agera), `v2_score`, `v2_pred_figs`; Phase 2 figure scripts `noise_cv_fig`, `socket_pinned_times_fig`, `c_heatmap_split_fig` (see handoff Status). Build order, inputs and outputs are in `references/v2_handoff.md`. |
 | `output/batch2_methods.md` | Model, protocol and bootstrap facts with file:line references, plus the variant matrix. |
 
 ## Conventions (agreed with the manuscript session)
